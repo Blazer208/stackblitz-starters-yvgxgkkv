@@ -11,20 +11,23 @@
 h1,h2,h3{margin-top:0}.sub,.muted{color:var(--muted)}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin:14px 0}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,textarea,select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#0a1322;color:var(--text);font-size:15px}textarea{min-height:76px;resize:vertical}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.btn{display:inline-block;border:0;border-radius:10px;padding:11px 14px;font-weight:800;text-decoration:none;cursor:pointer}.primary{background:var(--blue);color:#fff}.secondary{background:#18243a;color:var(--text);border:1px solid var(--line)}.good{background:var(--green);color:#06130a}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.btn{display:inline-block;border:0;border-radius:10px;padding:11px 14px;font-weight:800;text-decoration:none;cursor:pointer}.primary{background:var(--blue);color:#fff}.secondary{background:#18243a;color:var(--text);border:1px solid var(--line)}.good{background:var(--green);color:#06130a}
 .pills{display:flex;gap:8px;flex-wrap:wrap}.pill{padding:6px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:#b9f6ca}
 .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.metric{background:#0a1322;border:1px solid var(--line);border-radius:12px;padding:12px}.metric b{display:block;font-size:18px;margin-top:4px}
-.day{border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0;background:#0a1322}.dayhead{display:flex;justify-content:space-between;gap:10px;align-items:start;flex-wrap:wrap}.stop{position:relative;margin:14px 0 0;padding:0 0 0 28px}.dot{position:absolute;left:0;top:4px;width:14px;height:14px;border-radius:3px;background:var(--blue)}.rest .dot{background:var(--red);border-radius:50%}.delivery .dot{background:var(--green)}
+.day{border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0;background:#0a1322}.dayhead{display:flex;justify-content:space-between;gap:10px;align-items:start;flex-wrap:wrap}
+.stop{position:relative;margin:14px 0 0;padding:0 0 0 28px}.dot{position:absolute;left:0;top:4px;width:14px;height:14px;border-radius:3px;background:var(--blue)}.rest .dot{background:var(--red);border-radius:50%}.delivery .dot{background:var(--green)}
 .badge{display:inline-block;margin-left:6px;padding:3px 7px;border-radius:999px;border:1px solid var(--line);font-size:11px;color:var(--muted)}.addr{margin:4px 0}.meta{font-size:13px;color:var(--muted);line-height:1.5}.warn{color:#ffd18a}.small{font-size:12px}
+.qrrow{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}.qr{background:#fff;border-radius:10px;padding:8px;width:148px;text-align:center;color:#111}.qr img{width:132px;height:132px;display:block}.qr b{font-size:12px;display:block;margin-top:6px}.navblock{margin-top:10px}
+.notice{border-left:4px solid var(--amber);padding:10px 12px;background:#201b10;border-radius:8px;margin-top:12px}
 @media(max-width:760px){.grid,.grid3,.summary{grid-template-columns:1fr}.wrap{padding:12px}}
-@media print{body{background:white;color:black}.wrap{max-width:none}.no-print,.form-card{display:none!important}.card,.day,.metric{background:white;color:black;border-color:#bbb}.muted,.meta,.sub,label{color:#444}.btn{display:none}}
+@media print{body{background:white;color:black}.wrap{max-width:none}.no-print,.form-card{display:none!important}.card,.day,.metric{background:white;color:black;border-color:#bbb}.muted,.meta,.sub,label{color:#444}.btn,.qrrow{display:none}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Dispatcher trip-planning demo</div></div></div>
-    <div class="pills no-print"><span class="pill">✓ Two-stop day</span><span class="pill">✓ HOS inputs</span><span class="pill">✓ Truck-stop addresses</span><span class="pill">✓ Garmin GPX</span></div>
+    <div class="pills no-print"><span class="pill">✓ Two-stop day</span><span class="pill">✓ HOS inputs</span><span class="pill">✓ Google + Apple QR</span><span class="pill">✓ Garmin GPX</span></div>
   </div>
 
   <div class="card form-card">
@@ -49,60 +52,117 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
     </div>
     <div class="actions">
       <button class="btn primary" type="button" onclick="buildPlan()">Generate Demo Plan</button>
-      <a class="btn secondary" href="#plan">View Preloaded Plan</a>
       <button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button>
-      <button class="btn secondary" type="button" onclick="downloadGPX()">Export Garmin GPX</button>
+      <button class="btn secondary" type="button" onclick="downloadWholeTripGPX()">Download Whole-Trip Garmin GPX</button>
     </div>
-    <div class="small muted">This is a functional demo using a fixed sample corridor. Live truck-safe routing and stop discovery are the next backend stage.</div>
+    <div class="small muted">Demo mode uses fixed sample truck stops on the Boardman → Buhl corridor. Your dispatcher fields now rebuild the plan below. Live nationwide truck-stop discovery is the next stage.</div>
   </div>
 
   <div class="card" id="plan">
-    <div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div id="planMeta" class="muted small">Trip RS-DEMO-001 • Demo Driver • Boardman, OR → Buhl, ID</div></div><div class="small warn">Demo corridor — verify live restrictions before dispatch</div></div>
-    <div class="summary">
-      <div class="metric">Planned drive<b id="mDrive">~9.0 hr</b></div>
-      <div class="metric">Break/fuel stops<b>1</b></div>
-      <div class="metric">Final rest stops<b>1</b></div>
-      <div class="metric">Delivery leg<b>Light</b></div>
-    </div>
-    <div id="days">
-      <div class="day">
-        <div class="dayhead"><div><h3>DAY 1 — HARD RUN</h3><div class="muted small">Boardman, OR → Jerome, ID</div></div><div class="badge">Two-stop day</div></div>
-        <div class="stop"><div class="dot"></div><b>Break / Fuel — Flying J Travel Center #934</b><div class="addr">63276 OR-203, La Grande, OR 97850</div><div class="meta">I-84 Exit 265 • Pilot/Flying J fuel program • 30-minute break candidate</div><div class="actions no-print"><a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=45.2973495,-118.0439774">Google Maps</a><a class="btn secondary" target="_blank" href="https://maps.apple.com/?daddr=45.2973495,-118.0439774&dirflg=d">Apple Maps</a></div></div>
-        <div class="stop rest"><div class="dot"></div><b>Final Rest — Flying J Travel Center #640</b><div class="addr">5350 US-93, Jerome, ID 83338</div><div class="meta">Near I-84 Exit 173 • Overnight target • preserves a lighter final delivery leg</div><div class="actions no-print"><a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=42.649501,-114.4428292">Google Maps</a><a class="btn secondary" target="_blank" href="https://maps.apple.com/?daddr=42.649501,-114.4428292&dirflg=d">Apple Maps</a></div></div>
-      </div>
-      <div class="day">
-        <div class="dayhead"><div><h3>DAY 2 — DELIVERY</h3><div class="muted small">Jerome, ID → Buhl, ID</div></div><div class="badge">Light final day</div></div>
-        <div class="stop delivery"><div class="dot"></div><b>Delivery — Buhl, ID</b><div class="addr" id="deliveryLabel">Buhl, ID</div><div class="meta">Short final leg. Resolve the exact receiver dock address before live dispatch.</div></div>
-      </div>
-    </div>
+    <div id="generated"></div>
   </div>
 </div>
 
 <script>
-const demoStops=[
- {name:"Flying J Travel Center #934",address:"63276 OR-203, La Grande, OR 97850",lat:45.2973495,lng:-118.0439774},
- {name:"Flying J Travel Center #640",address:"5350 US-93, Jerome, ID 83338",lat:42.649501,lng:-114.4428292}
+const fixedStops=[
+ {kind:"break",label:"Break / Fuel",name:"Flying J Travel Center #934",address:"63276 OR-203, La Grande, OR 97850",lat:45.2973495,lng:-118.0439774,note:"I-84 Exit 265 • 30-minute break / fuel candidate"},
+ {kind:"rest",label:"Final Rest",name:"Flying J Travel Center #640",address:"5350 US-93, Jerome, ID 83338",lat:42.649501,lng:-114.4428292,note:"Near I-84 Exit 173 • overnight target"}
 ];
+
 function val(id){return document.getElementById(id).value.trim()}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function googleUrl(s){
+ if(s.lat!=null) return `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+ return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.address)}`;
+}
+function appleUrl(s){
+ if(s.lat!=null) return `https://maps.apple.com/?daddr=${s.lat},${s.lng}&dirflg=d`;
+ return `https://maps.apple.com/?daddr=${encodeURIComponent(s.address)}&dirflg=d`;
+}
+function qrUrl(url){return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`}
+function fmtDateTime(v){if(!v)return "Not entered";const d=new Date(v);return isNaN(d)?v:d.toLocaleString()}
+function stopHtml(s){
+ const gu=googleUrl(s), au=appleUrl(s);
+ return `<div class="stop ${s.kind}">
+  <div class="dot"></div>
+  <b>${esc(s.label)} — ${esc(s.name)}</b>
+  <div class="addr">${esc(s.address)}</div>
+  <div class="meta">${esc(s.note)}${s.lat!=null?`<br>Exact nav target: ${s.lat.toFixed(7)}, ${s.lng.toFixed(7)}`:""}</div>
+  <div class="actions no-print">
+    <a class="btn primary" target="_blank" rel="noopener" href="${gu}">Google Maps</a>
+    <a class="btn secondary" target="_blank" rel="noopener" href="${au}">Apple Maps</a>
+    <button class="btn secondary" type="button" onclick='downloadStopGPX(${JSON.stringify(s.name)},${JSON.stringify(s.address)},${s.lat==null?"null":s.lat},${s.lng==null?"null":s.lng})'>Garmin GPX</button>
+  </div>
+  <div class="qrrow no-print">
+    <div class="qr"><img src="${qrUrl(gu)}" alt="Google Maps QR"><b>Google Maps QR</b></div>
+    <div class="qr"><img src="${qrUrl(au)}" alt="Apple Maps QR"><b>Apple Maps QR</b></div>
+  </div>
+ </div>`;
+}
 function buildPlan(){
- const pickup=val("pickup")||"Pickup";
- const delivery=val("delivery")||"Delivery";
+ const pickup=val("pickup")||"Pickup not entered";
+ const delivery=val("delivery")||"Delivery not entered";
  const trip=val("trip")||"Unassigned";
- const driver=val("driver")||"Driver";
+ const driver=val("driver")||"Driver not entered";
+ const pickupTime=val("pickupTime");
+ const deliveryTime=val("deliveryTime");
  const max=Number(val("maxHours"))||11;
  const speed=Number(val("avgSpeed"))||55;
+ const cycle=Number(val("cycle"))||0;
  const network=val("network");
- document.getElementById("planMeta").textContent=`Trip ${trip} • ${driver} • ${pickup} → ${delivery} • ${network}`;
- document.getElementById("deliveryLabel").textContent=delivery;
- document.getElementById("mDrive").textContent=`up to ${max.toFixed(1)} hr/day @ ${speed} mph`;
- document.getElementById("plan").scrollIntoView({behavior:"smooth"});
+ const strategy=val("strategy");
+ const notes=val("notes");
+ const deliveryStop={kind:"delivery",label:"Delivery",name:"Receiver",address:delivery,lat:null,lng:null,note:"Final receiver destination entered by dispatcher"};
+
+ document.getElementById("generated").innerHTML=`
+  <div class="dayhead">
+    <div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(driver)}</div></div>
+    <div class="small warn">Demo corridor — verify live truck restrictions and ELD before dispatch</div>
+  </div>
+  <div class="summary">
+    <div class="metric">Pickup<b>${esc(pickup)}</b></div>
+    <div class="metric">Delivery<b>${esc(delivery)}</b></div>
+    <div class="metric">Planned drive<b>up to ${max.toFixed(1)} hr/day</b></div>
+    <div class="metric">Cycle available<b>${cycle.toFixed(1)} hr</b></div>
+  </div>
+  <div class="notice small"><b>Dispatcher inputs applied:</b><br>
+    Pickup: ${esc(pickup)} — ${esc(fmtDateTime(pickupTime))}<br>
+    Delivery: ${esc(delivery)} — ${esc(fmtDateTime(deliveryTime))}<br>
+    Network: ${esc(network)}<br>
+    Strategy: ${esc(strategy)}<br>
+    Avg speed planning input: ${speed} mph<br>
+    Route notes: ${esc(notes||"None")}
+  </div>
+  <div class="day">
+    <div class="dayhead"><div><h3>DAY 1 — HARD RUN</h3><div class="muted small">${esc(pickup)} → Jerome, ID</div></div><div class="badge">${esc(strategy)}</div></div>
+    ${fixedStops.map(stopHtml).join("")}
+  </div>
+  <div class="day">
+    <div class="dayhead"><div><h3>DAY 2 — DELIVERY</h3><div class="muted small">Jerome, ID → ${esc(delivery)}</div></div><div class="badge">Light final day</div></div>
+    ${stopHtml(deliveryStop)}
+  </div>
+  <div class="actions no-print">
+    <button class="btn good" type="button" onclick="downloadWholeTripGPX()">Download Whole-Trip Garmin GPX</button>
+    <button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button>
+  </div>`;
+ document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
 }
-function downloadGPX(){
- const pts=demoStops.map(s=>`<wpt lat="${s.lat}" lon="${s.lng}"><name>${s.name}</name><desc>${s.address}</desc></wpt>`).join("");
- const gpx=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1">${pts}</gpx>`;
- const blob=new Blob([gpx],{type:"application/gpx+xml"});
- const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="Route_Stride_Demo_Stops.gpx"; a.click(); URL.revokeObjectURL(a.href);
+function gpxText(points){
+ const wpts=points.filter(p=>p.lat!=null&&p.lng!=null).map(p=>`<wpt lat="${p.lat}" lon="${p.lng}"><name>${xml(p.name)}</name><desc>${xml(p.address)}</desc></wpt>`).join("");
+ return `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1">${wpts}</gpx>`;
 }
+function xml(s){return String(s).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]))}
+function saveFile(text,name,type){
+ const blob=new Blob([text],{type});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
+}
+function downloadStopGPX(name,address,lat,lng){
+ if(lat==null||lng==null){alert("This destination does not yet have exact GPS coordinates. Use Google or Apple Maps for the dispatcher-entered address.");return}
+ saveFile(gpxText([{name,address,lat,lng}]),"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml");
+}
+function downloadWholeTripGPX(){
+ saveFile(gpxText(fixedStops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng}))),"Route_Stride_Demo_Trip.gpx","application/gpx+xml");
+}
+buildPlan();
 </script>
 </body>
 </html>
