@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Route Stride — Live Route Planner v0.4</title>
+<title>Route Stride — Live Route Planner v0.5</title>
 <style>
 :root{--bg:#0a1220;--panel:#111c2e;--panel2:#081525;--line:#2b405f;--text:#f4f7fb;--muted:#a9b8cf;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--amber:#f59e0b}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
@@ -25,7 +25,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 <div class="wrap">
  <div class="hero">
   <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Live route segmentation demo</div></div></div>
-  <div class="version">VERSION 0.4 — LIVE ROUTE BUILD</div>
+  <div class="version">VERSION 0.5 — WHOLE-TRIP NAV</div>
  </div>
 
  <div class="card form-card">
@@ -63,13 +63,33 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 </div>
 
 <script>
-let lastRoute=null,lastOrigin=null,lastDest=null;
+let lastRoute=null,lastOrigin=null,lastDest=null,lastPlanStops=[];
 
 function val(id){return document.getElementById(id).value.trim()}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function googleUrl(lat,lng,label){return lat!=null?`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`}
 function appleUrl(lat,lng,label){return lat!=null?`https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`:`https://maps.apple.com/?daddr=${encodeURIComponent(label)}&dirflg=d`}
 function qrUrl(url){return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`}
+function googleWholeTripUrl(stops){
+ if(!stops||stops.length<2)return "#";
+ const o=stops[0],d=stops[stops.length-1],middle=stops.slice(1,-1);
+ let u=`https://www.google.com/maps/dir/?api=1&origin=${o.lat},${o.lng}&destination=${d.lat},${d.lng}&travelmode=driving`;
+ if(middle.length)u+=`&waypoints=${encodeURIComponent(middle.map(p=>p.lat+","+p.lng).join("|"))}`;
+ return u;
+}
+function appleWholeTripUrl(stops){
+ if(!stops||stops.length<2)return "#";
+ const d=stops[stops.length-1];
+ // Apple Maps URL supports destination navigation reliably; intermediate Route Stride stops are retained in the plan.
+ return `https://maps.apple.com/?daddr=${d.lat},${d.lng}&dirflg=d`;
+}
+function wholeTripNavBlock(){
+ const gu=googleWholeTripUrl(lastPlanStops),au=appleWholeTripUrl(lastPlanStops);
+ return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Pickup → generated break/rest checkpoints → delivery</div></div><span class="badge">Same Route Stride plan</span></div>
+ <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Trip Destination in Apple Maps</a><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
+ <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Destination QR</b></div></div>
+ <div class="notice small"><b>Apple Maps note:</b> the web-link handoff reliably opens the trip destination, but Apple Maps does not provide Route Stride the same multi-waypoint URL handoff as Google Maps. The ordered daily checkpoints remain available below as individual Apple Maps buttons/QRs.</div></div>`;
+}
 function formatHours(h){const hr=Math.floor(h),min=Math.round((h-hr)*60);return min?`${hr}h ${min}m`:`${hr}h`}
 function fmtDateTime(v){if(!v)return "Not entered";const d=new Date(v);return isNaN(d)?v:d.toLocaleString()}
 function dist(a,b){const R=3958.7613,rad=Math.PI/180;const dLat=(b[1]-a[1])*rad,dLon=(b[0]-a[0])*rad;const x=Math.sin(dLat/2)**2+Math.cos(a[1]*rad)*Math.cos(b[1]*rad)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
@@ -109,12 +129,14 @@ async function buildPlan(){
   const roadMiles=rt.distance/1609.344,roadHours=rt.duration/3600,planningHours=Math.min(maxHours,9),dailyCap=planningHours*avgSpeed,driveDays=Math.max(1,Math.ceil(roadMiles/dailyCap));
   const coords=rt.geometry.coordinates,cum=cumulative(coords),geomMiles=cum[cum.length-1];
   const scale=geomMiles?roadMiles/geomMiles:1;
-  let cards="",used=0;
+  let cards="",used=0;lastPlanStops=[{name:"Pickup",lat:o.lat,lng:o.lng,address:pickup}];
   for(let day=1;day<=driveDays;day++){
     const remaining=roadMiles-used;const dayMiles=day===driveDays?remaining:Math.min(dailyCap,remaining);const startM=used,endM=used+dayMiles,midM=startM+dayMiles/2;
     const midP=pointAtMiles(coords,cum,midM/scale),endP=pointAtMiles(coords,cum,endM/scale);
     const [midCity,endCity]=await Promise.all([reverse(midP[1],midP[0]),reverse(endP[1],endP[0])]);
     const dayDrive=Math.min(planningHours,dayMiles/avgSpeed);
+    lastPlanStops.push({name:"Day "+day+" midpoint",lat:midP[1],lng:midP[0],address:midCity+" area"});
+    lastPlanStops.push({name:day===driveDays?"Delivery":"Day "+day+" final rest",lat:day===driveDays?d.lat:endP[1],lng:day===driveDays?d.lng:endP[0],address:day===driveDays?delivery:endCity+" area"});
     cards+=`<div class="day">
       <div class="dayhead"><div><h3>DAY ${day} — ${day===driveDays?"FINAL DELIVERY DAY":(day===1?"HARD RUN":"RUN")}</h3><div class="muted small">Target ${Math.round(dayMiles)} mi • about ${formatHours(dayDrive)} driving</div></div><span class="badge">${day===driveDays?"Lighter final leg":"Two-stop rhythm"}</span></div>
       <div class="stop"><div class="stopTitle">Midpoint Break / Fuel Target</div><div class="addr">${esc(midCity)} area</div><div class="meta">About ${Math.round(dayMiles/2)} miles into Day ${day}. This is a route checkpoint, <b>not yet a verified ${esc(network)} facility</b>.</div>${navBlock(midP[1],midP[0],midCity+" area","Day "+day+" midpoint")}</div>
@@ -123,12 +145,11 @@ async function buildPlan(){
     used=endM;
   }
   status.innerHTML='<span class="ok"><b>LIVE ROUTE GENERATED.</b> The day count below is based on the addresses you entered.</span>';
-  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(tripNo)} • ${esc(driver)}</div></div><div class="version">v0.4 LIVE</div></div>
+  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(tripNo)} • ${esc(driver)}</div></div><div class="version">v0.5 LIVE</div></div>
    <div class="summary"><div class="metric">Road distance<b>${Math.round(roadMiles).toLocaleString()} mi</b></div><div class="metric">Estimated road time<b>${formatHours(roadHours)}</b></div><div class="metric">Planned drive days<b>${driveDays}</b></div><div class="metric">Daily target<b>${planningHours.toFixed(1)} hr</b></div></div>
    <div class="notice small"><b>Your dispatcher inputs are driving this plan:</b><br>Pickup: ${esc(pickup)} — ${esc(fmtDateTime(val("pickupTime")))}<br>Delivery: ${esc(delivery)} — ${esc(fmtDateTime(val("deliveryTime")))}<br>Approved network: ${esc(network)} • Strategy: ${esc(strategy)} • Max HOS input: ${maxHours} hr • Avg speed input: ${avgSpeed} mph • Cycle available: ${cycle} hr<br>Route notes: ${esc(notes||"None")}</div>
    <div class="notice small"><b>Important:</b> this live demo now fixes the two-day bug by calculating actual road distance and multi-day segmentation. The midpoint/rest coordinates below are route checkpoints, not verified truck-stop facilities. Exact Pilot/Flying J stop discovery is the next connection we need before using these as dispatch-grade stops.</div>
-   ${cards}
-   <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
+   ${wholeTripNavBlock()}${cards}\n   <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
   document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
  }catch(e){status.innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>'}
  finally{btn.disabled=false;btn.textContent="Generate Live Plan"}
