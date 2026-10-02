@@ -55,14 +55,19 @@ textarea{min-height:80px;resize:vertical}.btn{display:inline-block;border:0;bord
     </div>
     <div style="margin-top:12px"><label>Route notes / highways</label><textarea>I-84 east through La Grande and Caldwell → US-93 south at Twin Falls/Jerome area → Buhl</textarea></div>
     <div style="margin-top:12px"><label>Approved truck-stop networks</label><select><option>Pilot / Flying J only</option><option>Pilot / Flying J + Love's</option><option>All approved networks</option></select></div>
-    <div style="margin-top:14px"><button class="btn primary" onclick="generatePlan()">Generate Demo Plan</button><button class="btn secondary" onclick="downloadGPX()">Export Garmin GPX</button></div>
+    <div style="margin-top:14px"><a class="btn primary" href="#plan">View Demo Plan</a><button class="btn secondary" type="button" onclick="downloadGPX()">Export Garmin GPX</button></div>
     <div class="small">Demo data is local to this page and does not save.</div>
   </div>
 
   <div class="card" id="plan">
     <h2>Professional Driver Trip Plan</h2>
     <div class="small">Blue square = break/fuel. Red circle = overnight rest. Green square = delivery.</div>
-    <div class="route" id="route"></div>
+    <div class="route" id="route">
+    <div class="stop break"><div class="dot"></div><h3>MON: Flying J Travel Center #934<span class="badge">BREAK</span></h3><div class="addr">63276 OR-203, La Grande, OR 97850</div><div class="coords">45.2973495, -118.0439774</div><div class="meta">~99 mi from Boardman-area pickup • ~1 hr 45 min<br>Break / fuel candidate on I-84 Exit 265</div></div>
+    <div class="stop break"><div class="dot"></div><h3>MON: Flying J Travel Center #638<span class="badge">BREAK</span></h3><div class="addr">3512 Franklin Rd, Caldwell, ID 83605</div><div class="coords">43.6615778, -116.6545308</div><div class="meta">Route fallback • Clock-dependent<br>Break / fuel / backup rest on I-84 Exit 29</div></div>
+    <div class="stop rest"><div class="dot"></div><h3>MON: Flying J Travel Center #640<span class="badge">REST</span></h3><div class="addr">5350 US-93, Jerome, ID 83338</div><div class="coords">42.6495010, -114.4428292</div><div class="meta">Primary overnight target • Clock-dependent<br>End-of-day rest near I-84 Exit 173</div></div>
+    <div class="stop delivery"><div class="dot"></div><h3>TUE: Buhl delivery<span class="badge">DELIVERY</span></h3><div class="addr">Buhl, ID</div><div class="coords">Exact receiver coordinates required before dispatch</div><div class="meta">Final short leg • ~35–45 mi from Jerome area<br>Receiver address should be resolved to the exact dock before live dispatch</div></div>
+  </div>
   </div>
 </div>
 <script>
