@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Route Stride – Exact Stop Demo</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--text:#f0f6fc;--muted:#9da7b3;--blue:#2f81f7;--red:#f85149;--green:#3fb950;--amber:#d29922}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1050px;margin:auto;padding:20px}.brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#2f81f7,#3fb950);display:grid;place-items:center;font-weight:900}
+h1{margin:0;font-size:28px}.sub{color:var(--muted);margin:4px 0 20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px}input,textarea,select{width:100%;background:#0d1117;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px;font-size:15px}
+textarea{min-height:80px;resize:vertical}.btn{display:inline-block;border:0;border-radius:9px;padding:10px 14px;font-weight:700;cursor:pointer;text-decoration:none;margin:4px 5px 4px 0}
+.primary{background:var(--blue);color:white}.secondary{background:#21262d;color:var(--text);border:1px solid var(--line)}.good{background:var(--green);color:#06120a}
+.route{position:relative;margin:18px 6px 6px;padding-left:34px}.route:before{content:"";position:absolute;left:12px;top:10px;bottom:10px;width:3px;background:#30363d}
+.stop{position:relative;padding:0 0 22px 16px}.dot{position:absolute;left:-33px;top:3px;width:18px;height:18px;border-radius:4px;background:var(--blue);border:3px solid #0d1117;box-shadow:0 0 0 2px var(--blue)}
+.stop.rest .dot{border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--red)}.stop.delivery .dot{background:var(--green);box-shadow:0 0 0 2px var(--green)}
+.stop h3{margin:0 0 4px}.meta{color:var(--muted);font-size:13px;line-height:1.55}.badge{display:inline-block;padding:3px 7px;border-radius:999px;background:#21262d;border:1px solid var(--line);font-size:11px;margin-left:6px}
+.addr{font-size:15px;margin:7px 0 3px}.coords{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#c9d1d9;font-size:12px}
+.status{display:flex;gap:8px;flex-wrap:wrap}.pill{padding:6px 9px;border-radius:999px;border:1px solid var(--line);font-size:12px}.ok{color:#7ee787}
+.small{font-size:12px;color:var(--muted)}@media(max-width:700px){.grid{grid-template-columns:1fr}.wrap{padding:12px}h1{font-size:24px}}
+
+.qrwrap{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+.qritem{background:#0d1117;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;min-width:138px}
+.qritem img{width:118px;height:118px;background:white;border-radius:6px;display:block;margin:0 auto 7px}
+.qrlabel{font-size:12px;font-weight:700}
+.qrnote{font-size:11px;color:var(--muted);margin-top:2px}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Exact Stop Navigation Demo</div></div></div>
+
+  <div class="card">
+    <div class="status">
+      <span class="pill ok">✓ Exact stop names</span><span class="pill ok">✓ Full addresses</span>
+      <span class="pill ok">✓ GPS coordinates</span><span class="pill ok">✓ Google / Apple buttons + QR</span>
+      <span class="pill ok">✓ Garmin GPX export</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Load and Route</h2>
+    <div class="grid">
+      <div><label>Pickup address</label><input id="pickup" value="Boardman, OR"></div>
+      <div><label>Delivery address</label><input id="delivery" value="Buhl, ID"></div>
+      <div><label>Trip number</label><input value="RS-DEMO-001"></div>
+      <div><label>Driver</label><input value="Demo Driver"></div>
+      <div><label>Pickup time</label><input type="datetime-local" value="2026-09-28T14:30"></div>
+      <div><label>Delivery appointment</label><input type="datetime-local" value="2026-09-29T10:00"></div>
+      <div><label>Max drive hours/day</label><input type="number" value="11"></div>
+      <div><label>Average speed (mph)</label><input type="number" value="55"></div>
+    </div>
+    <div style="margin-top:12px"><label>Route notes / highways</label><textarea>I-84 east through La Grande and Caldwell → US-93 south at Twin Falls/Jerome area → Buhl</textarea></div>
+    <div style="margin-top:12px"><label>Approved truck-stop networks</label><select><option>Pilot / Flying J only</option><option>Pilot / Flying J + Love's</option><option>All approved networks</option></select></div>
+    <div style="margin-top:14px"><button class="btn primary" onclick="generatePlan()">Generate Demo Plan</button><button class="btn secondary" onclick="downloadGPX()">Export Garmin GPX</button></div>
+    <div class="small">Demo data is local to this page and does not save.</div>
+  </div>
+
+  <div class="card" id="plan">
+    <h2>Professional Driver Trip Plan</h2>
+    <div class="small">Blue square = break/fuel. Red circle = overnight rest. Green square = delivery.</div>
+    <div class="route" id="route"></div>
+  </div>
+</div>
+<script>
+const stops = [
+ {kind:"break",day:"MON",name:"Flying J Travel Center #934",brand:"Flying J",address:"63276 OR-203, La Grande, OR 97850",lat:45.2973495,lng:-118.0439774,miles:"~99 mi from Boardman-area pickup",drive:"~1 hr 45 min",note:"Break / fuel candidate on I-84 Exit 265"},
+ {kind:"break",day:"MON",name:"Flying J Travel Center #638",brand:"Flying J",address:"3512 Franklin Rd, Caldwell, ID 83605",lat:43.6615778,lng:-116.6545308,miles:"Route fallback",drive:"Clock-dependent",note:"Break / fuel / backup rest on I-84 Exit 29"},
+ {kind:"rest",day:"MON",name:"Flying J Travel Center #640",brand:"Flying J",address:"5350 US-93, Jerome, ID 83338",lat:42.649501,lng:-114.4428292,miles:"Primary overnight target",drive:"Clock-dependent",note:"End-of-day rest near I-84 Exit 173"},
+ {kind:"delivery",day:"TUE",name:"Buhl delivery",brand:"Receiver",address:"Buhl, ID",lat:null,lng:null,miles:"Final short leg",drive:"~35–45 mi from Jerome area",note:"Receiver address should be resolved to the exact dock before live dispatch"}
+];
+
+const qrData = {"Flying J Travel Center #934": {"google": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAM0AAADNAQAAAAAzx8nEAAACYklEQVR4nO1YQY6jMBCshkjmZn5gPjIw31oJDYyINM9anHzE+UH7ZiSH2gNZaS/Z2zjSan1DfejCVFd1IcSTs1XPKsC/W/Ii0iDOaADcpIozRES6ojBAT9JQ4dKgI7gCzpDZpcIwFM6slqQnAwadaFaMZWH8LsXTDW8tHHx7/u5ez0uio5N3fAoGbl15GA9urKgDd5tB6iu4UYEiAtEfQ3O9za65YMQmcip9GyTJ1TJwPR6zI0mWnxQYKpCECxNsdgCmsjAq0JGxQk30cZMGcfGknkt/lNUuxMDsIFoHegXQA8V1I25dQpxvqce9A2xGujKX1o1Ba98AcPBudjKICQ3LT8qKKSThDOO1DuhtRhpeMykQHZFERxhyBmDn8p5SMwFnB9gT4nvMDqLf1evZ4W4XHq8/aM3U2+wgWlg3wN2S3FETsAwQnQJ3u5SGQa2DOQxNJ5IKGM/C3MDDV5lhPPMxLknKb1+7nR0GBbhjOkzO+PLcIOfHrK52CUmYD74UF3OyeWtrbh8YndnjCVLhs+xmXuGCe5eAe5cu8XRrgPFQs8Iw2OLWXPUMCLchDu7kzBqLe4pXIMEypP4hHnyJpzA7swIOwuzMjjqU9xTQa02uGJEGzjCeDElK30YF2E3kHV9sKNmBIl1DmUtTtEdNem7ChSfEDzs7rvYFaw9gdoyPKE0dnfFaeBd9pDavU3hEaWbHtbzDeoUznmQaFC71dj4i7SsSPdu7NBe7+OaqcOZn+429/lr6otnj1pl7OyINLK+iJA3JYDxnkDoekvaKRH8BgDchRdovonhOkf8/JP84vwA62sBpR2/v9wAAAABJRU5ErkJggg==", "apple": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALkAAAC5AQAAAABc1qPxAAACDUlEQVR4nOWYPY7bMBCFv1kZIFPRN6BukBtIzpFSBvCPDAfIndKspL2IdIAAUkcBsl4Kb5fFVhsWCRsCnOIDOfPekDTx5rg+vb0O/06gMzPPbCWdNXhmM3vKA0edJNfpJietUd10kTo1mY5kthLZCsy7cTlzN//hjPcD4WRJ+2Lwf5Hxx9g9poofAwDpU0b4EwQN2HSv/YuW2m0UStngMjP6eQXmBt9zNTvkgteSEsByCDsgSNpywXvAE25dkmlA1ox2yKXzDWKqKJTqqRiSaYU6l85tugzepiNecanDNjfRtbmkpvirFDOo/+zWxcLX0fVVJngP+J/Vbixta/BVL30w452cSyvJtMYEhYCLsFw574HwbA2+Cotp4zupyrbzCVIV1ijpJteGJrp8XY3LEG7jbny0tgrGfPbacy3nM0eWQlYuX0YNuVrqo+DcxhEIDdhUDLkKDrVBUhsk101EtSGvw13N23gql1NsoJ4gV85RN0GyCaggJtMapXzVTgxb0JAI6+juWbtaNxFTFZqISdIWpFw6Ry1HXAtgWqNayHbsSJLUPmy9UDKtMZ+3d2bm6+leJpu+mWducJmuUa8vlg1wnSRMKxm9fbYSODKf9vdSz7ZjPuesdrcFCdNtePXYjDoHG08l2j/MLWZ0OElOWqGeCmmD6LI5nMyMbl8MKK74F926+ZBn5/bffov8BgG3QOjlF12MAAAAAElFTkSuQmCC"}, "Flying J Travel Center #638": {"google": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAM0AAADNAQAAAAAzx8nEAAACc0lEQVR4nO2YQW7kOAxFH+MCVDvVnEC+SOz0vZyxu52DWZmLyDeQdyrA5d+LKgxm0elZRQEGw40WXPCD5P8kZeIDuz595IH/riua2TnatJ7he2t2ecPMrK0KA0VJ7gCcciNF7cFJeyiVE7VZCxC2/jKssLlEtOlL6vXup9XNmcDz5dZ+bqxf2enxbhLPf2Ss+7xYv3d5JfCn1V54W13UDr2m2jBkZth67d28Xnvet4mr2ak2jF5SwZ+g86f1+kKTJClVJ+weME1BUTvFMoCvTFi0+DmVjoduYJpTgUaVYRx+xymPovNzos+NSudVH8acSi+lgp9wUVPA8hdkY07AgFu8kotScsrUFvO/Mkg6sX1bX/vrq1lbYqjOlOP+Niqd37l3J4x1i/LEO00qpn09s51wMQ8rlj8n1semmJvkDj/hlAdKnwnuqJ+N5zCxfVuVSgyncI5hjlujymKOYia4KMktXsIyQTFXzgZa/Cwpj8kdjKn0eVR93XiiX6+t2eXWX1+4te4HrDxfhtpFWRiQ8kDB76FYhmKqLOZPQCPrL2/hbOscwc8J1d9FLd/aYppT6fyJMwzhbPmt+vYVJvz3y631P4DSba/tfS+uTlik3MgdDGC5kZb6g16akzv8FOgYVYBQf6YgZdDhlQqMqfR6aFh1+ZpwymPSQZPuB4LVV1FJ0uJ3MEmlz0NQ1FxbN6KZndmc0OVmvANnqK6iUZJTBncwJkXtQQvDl1z0Mdwbk+uf27Tay2fF+hdXv07w7l/7c7wQ6HNlGI9944DgFr9T8EpO9Zny6I0Bd9AkLI9ysf6dsgBu8bNKB3+ztrJ82f8fkv+wnyhXryz12nHWAAAAAElFTkSuQmCC", "apple": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALkAAAC5AQAAAABc1qPxAAACNElEQVR4nOWYMY7bMBBF/5cMUFtRQZp0FLDnsKQ9VgB7rbUNpFkg90mzonyCHCCAeIAgZrUSIPun2JS7qRIWCRsC/MUjZv7MgKTw6nrIXj8H/h3BkyyACwuRnNtIMksFpyQAnzTfnTfO7rGT+mQhiazgyw1Mj2OI97iw+OOM3woMXZhZwv1FxpuCHCtdkXsMaeFWI4BczLXAXJFrSgYXSTDMlenjtikGPJBtKngjaVIJAPbgASvpmgo+RLJoZHxs2DkgMqHb5RYXWcJZf36o5hb5OCdqMiswdCiaHpi3X5db8/xuvjVTKniNFQQA080P8+1Dhi6YoU7m9gXM4rbC2s2NkTrENl2dr8KkMh/NPhpP0oypDAd5LTA9Ng61XaArNm5q1CXKefw8uuFcOpyuxxED8rFIZLgXgS0QdOHiitqS05AOfqmmdblxOImc78IhWc4z+BKuOGkF3mMns8elQZ0KXlsz6okaMURygu1Cqg6XAUAoaiBg7TqHGhukGyynsGAaLCuzjwfPLJqxSGQ4yGtxxuswTr/qfKdUdQ75M9zUvNxgga5WMj4NPAOwGwuVR8RtmYtZJGObKuySpB75aHrk40QtDkzVXn0LmGdcmnhzfqzA+IhU8xzykkxvO0yNFoBaYJQs55EVECWohNMTV8nm+epl4/l9Z7/Ux5Gw328LJn2xwHYh3mMTjA/Gm2QdDlYj1iVg+7itpnX5sfnzjLcEkcQAYG7cQcVJxsc2DZz/7bfIT0wLH0WkBW6uAAAAAElFTkSuQmCC"}, "Flying J Travel Center #640": {"google": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAM0AAADNAQAAAAAzx8nEAAACeElEQVR4nO2YMY7kNhBFX7UESBlns83YF1lpfCSHBlor7fYAPpbFnhPsDdgHMMDOKECt70Bjw4EHjoYNGK6EECooovjr//oy8U4sh/cy8F9NoRloQjp5Oqqo2a0ewOeyNzRJ4M4xW/qlxxI00lq6GyHhm5BGNUEr2qjUzJzKdqPejy+f0nUZfvwMF/f78YNq/XvqwovPUMW2v04fXOsfQ0FSI61kOPncv32WhqjMjMtt8i4kcN9vw3Exq0t3Q5K0ubNyL0kbeElS0W6goAkAv5NHL0WFVJg30AbkjjFKWn3GTWh257LdOPCaqujOqkF2DljC2/NtORYn81G5cyu5Y3wbEh5A5umFllvtXVBNvgBuc8XJXOmElEZlOHk6QLMrPCkHgp98G3wNnatpZneOLTcrj41K2pykjUr0OovuEdi4mz3fauzghqO+2WJYqmJhaevcSr7AtQnXFUy118ypuMLeatzsJpbhCax/AnvmXhobIeG1ufMuLs3mVrS54goLVWhfr8vRzCZ4TS9YVRobaHOK2pxi7neRq6JCGosrbBojUEU6Tux36Uo/Sg3cewFInxpZTxU/t9T+AT4FGGMGfKNURfrySyBuIlu6H5vZTdflAF7fnorTF7fJu998DZYqaeNuj9CUIMXcS6LX5BVSFXNxTXlzbdLkpTQK3ARQlR5YSVLQ6uk1+WZzqy/PGweCmbWyGi5UcXkGWtxQFht/OfqJLBuOGV7I8GtpMg8J38z7xrO/DNgDeGOP01XfbzX5wqhm+9ha76Y6YOmfxtB+scHypfQ1/nT06eSb2Uk7h83ld9Hd0QPLT9fhmHGDLV9L+xT7/4fk3+IPa3ydMJN5X8EAAAAASUVORK5CYII=", "apple": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALkAAAC5AQAAAABc1qPxAAACK0lEQVR4nOWYQW7bMBRE51sCqK6+b0ABPUBOEMs5VgArlu0AXfY86aaic44C5AEKkKtSgKzpIinaRdJVwkXLFcFZPGg+/1CkEC+Ow+rldeDfEZyINEgDGiRpp20SkVUpuJAEcI+pszP0iD05FrMkSYuzzqALdUh3uEjz5oy/CpS+nTp7Is7vxnhd0DqYYxpC846MlwSlh8SKcsMZHFExF4NTRIA0tWZMfdcAB5FtKXhHMtPWmLZqHDZKcikDB10EzILKc8SexkXAkEMZ+AJYjtjBuAhAYuUhZeArPHIIjbDGdKczzKJTZ8rZTvosnJElVj5DZxhXzHadAehgAZ0tyRm5mO0SK583aQaXZJyskvHl4tWtD11z1jrISqeWlzVs3pSqOSMsRyXpSM8RFUu12gpn7H2D1LdTL7VtNtpLPpfL9iFkoXHmqL1MN+FUsObAPRqubzvZB3pzWF86FKr5Ctdr2CxhAM4qbRYOAYVsBxclscEOeaPDU5+z4IYDssRP3hxRPfd5sS93cQfjYuXzRum5YE90peLVcba5ewr4k+eoLAavgfTZNz8E4GUd0TwkQf5QLOH4K9xcrHwWzrbUeQ6OAMyiZAZ2Nkvc2XLxKiTxGPoWXUQAdAhvznhdSNICWgO0gzVfpUbaloHXv6fmdGVmgX7/WCrh/oBLN87BfLky37TQP9zzjeVa6MwxDUj9+rZ7e8ZrAkUEj/HSpd7WVo9qXNqWgct/+yzyE053QLNpX863AAAAAElFTkSuQmCC"}};
+
+function gmaps(s){ return s.lat ? `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address)}`;}
+function amap(s){ return s.lat ? `https://maps.apple.com/?daddr=${s.lat},${s.lng}&dirflg=d` : `https://maps.apple.com/?q=${encodeURIComponent(s.address)}`;}
+
+function generatePlan(){
+ const route=document.getElementById("route"); route.innerHTML="";
+ stops.forEach((s,i)=>{
+   const el=document.createElement("div"); el.className=`stop ${s.kind}`;
+   el.innerHTML=`<div class="dot"></div>
+   <h3>${s.day}: ${s.name}<span class="badge">${s.kind.toUpperCase()}</span></h3>
+   <div class="addr">${s.address}</div>
+   <div class="coords">${s.lat ? `${s.lat.toFixed(7)}, ${s.lng.toFixed(7)}` : "Exact receiver coordinates required before dispatch"}</div>
+   <div class="meta">${s.miles} • ${s.drive}<br>${s.note}</div>
+   <div style="margin-top:8px">
+    <a class="btn primary" target="_blank" href="${gmaps(s)}">Google Maps</a>
+    <a class="btn secondary" target="_blank" href="${amap(s)}">Apple Maps</a>
+   </div>
+    ${s.lat && qrData[s.name] ? `
+    <div class="qrwrap">
+      <div class="qritem">
+        <img src="${qrData[s.name].google}" alt="Google Maps QR for ${s.name}">
+        <div class="qrlabel">Google Maps QR</div>
+        <div class="qrnote">Scan for this exact stop</div>
+      </div>
+      <div class="qritem">
+        <img src="${qrData[s.name].apple}" alt="Apple Maps QR for ${s.name}">
+        <div class="qrlabel">Apple Maps QR</div>
+        <div class="qrnote">Scan for this exact stop</div>
+      </div>
+    </div>` : ``}`;
+   route.appendChild(el);
+ });
+}
+function downloadGPX(){
+ const exact=stops.filter(s=>s.lat);
+ let pts=exact.map(s=>`<wpt lat="${s.lat}" lon="${s.lng}"><name>${s.name}</name><desc>${s.address}</desc></wpt>`).join("");
+ const gpx=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride Demo" xmlns="http://www.topografix.com/GPX/1/1">${pts}</gpx>`;
+ const blob=new Blob([gpx],{type:"application/gpx+xml"}); const u=URL.createObjectURL(blob);
+ const a=document.createElement("a"); a.href=u; a.download="Route_Stride_Demo_Stops.gpx"; a.click(); URL.revokeObjectURL(u);
+}
+generatePlan();
+</script>
+</body></html>
