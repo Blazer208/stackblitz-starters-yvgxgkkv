@@ -25,7 +25,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 <div class="wrap">
  <div class="hero">
   <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Professional Driver Trip Plan test</div></div></div>
-  <div class="version">VERSION 0.5.1 — HAMER FIX</div>
+  <div class="version">VERSION 0.5.2 — HAMER BYPASS</div>
  </div>
 
  <div class="card form-card">
@@ -165,13 +165,15 @@ function stopCard(s,title,note){
 async function build127482(){
  const status=document.getElementById("status"),gen=document.getElementById("generated");
  status.innerHTML='<span class="spinner"></span>Loading exact Trip 127482 stops and building the whole-trip navigation handoff…';
- const [yard,pickup,delivery]=await Promise.all([geocode(val("yard")),geocode(val("pickup")),geocode(val("delivery"))]);
+ const [yard,delivery]=await Promise.all([geocode(val("yard")),geocode(val("delivery"))]);
  if(!yard)throw new Error("Could not locate yard: "+val("yard"));
  if(!delivery)throw new Error("Could not locate delivery: "+val("delivery"));
  const stops=trip127482Stops.map(s=>({...s}));
  Object.assign(stops[0],yard);stops[0].name="Western Transport Inc. — Yard";stops[0].address=val("yard");
- if(pickup)Object.assign(stops[1],pickup);
- stops[1].name="Rigby Produce - Larsen";stops[1].address=val("pickup");
+ // Hamer rural grid address is intentionally NOT sent through the public geocoder.
+ // Google/Apple receive the full street address directly; Garmin omits this point
+ // until an exact verified facility coordinate is available.
+ stops[1].lat=null;stops[1].lng=null;stops[1].name="Rigby Produce - Larsen";stops[1].address=val("pickup");
  Object.assign(stops[8],delivery);stops[8].name="Reinhart Foodservice - Oak Creek";stops[8].address=val("delivery");
  lastPlanStops=stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng}));
  lastOrigin=lastPlanStops[0];lastDest=lastPlanStops[lastPlanStops.length-1];
@@ -187,7 +189,7 @@ async function build127482(){
  const d4=stopCard(stops[8],"DELIVERY","Reinhart Foodservice - Oak Creek • appointment Thursday, Oct 8, 2026 at 5:00 AM.");
 
  status.innerHTML='<span class="ok"><b>TRIP 127482 LOADED.</b> This test is using the Professional Driver Trip Plan stops, not generic midpoint checkpoints.</span>';
- gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip 127482 • ${esc(val("driver"))} • Truck ${esc(val("truck"))} • Trailer ${esc(val("trailer"))}</div></div><div class="version">v0.5.1 TEST — 127482</div></div>
+ gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip 127482 • ${esc(val("driver"))} • Truck ${esc(val("truck"))} • Trailer ${esc(val("trailer"))}</div></div><div class="version">v0.5.2 TEST — 127482</div></div>
  <div class="summary"><div class="metric">PC*Miler total<b>1,521.1 mi</b></div><div class="metric">PC*Miler drive<b>26:21</b></div><div class="metric">Planned drive days<b>4</b></div><div class="metric">Delivery<b>Thu 5:00 AM</b></div></div>
  <div class="notice small"><b>Load:</b> ${esc(val("commodity"))} • ${esc(val("weight"))} • Reefer ${esc(val("reefer"))}<br><b>Strategy:</b> Hard first day, balanced second day, stage at Oak Creek Wednesday night for a very short Thursday delivery.<br><b>Company route:</b> ${esc(val("notes"))}</div>
  ${wholeTripNavBlock()}
