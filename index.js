@@ -36,7 +36,14 @@ const server = http.createServer((req, res) => {
             res.writeHead(404);
             return res.end('Not found');
           }
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'Surrogate-Control': 'no-store',
+            'X-Route-Stride-Version': '0.5.3'
+          });
           res.end(fallback);
         });
       }
@@ -44,7 +51,15 @@ const server = http.createServer((req, res) => {
       return res.end('Not found');
     }
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': mime[ext] || 'application/octet-stream' });
+    const headers = {
+      'Content-Type': mime[ext] || 'application/octet-stream',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store',
+      'X-Route-Stride-Version': '0.5.3'
+    };
+    res.writeHead(200, headers);
     res.end(data);
   });
 });
