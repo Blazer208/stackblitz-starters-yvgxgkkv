@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Route Stride — Dispatcher Trip Planner</title>
+<style>
+:root{--bg:#0a1220;--panel:#111c2e;--panel2:#081525;--line:#2b405f;--text:#f4f7fb;--muted:#a9b8cf;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--amber:#f59e0b}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1180px;margin:auto;padding:16px}.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.brand{display:flex;align-items:center;gap:12px}.logo{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;font-weight:900}
+h1,h2,h3{margin-top:0}.sub,.muted{color:var(--muted)}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin:14px 0}.version{border:1px solid var(--green);color:#b9f6ca;border-radius:999px;padding:6px 10px;font-weight:800;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,textarea,select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#081525;color:var(--text);font-size:15px}textarea{min-height:76px;resize:vertical}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.btn{display:inline-block;border:0;border-radius:10px;padding:11px 14px;font-weight:800;text-decoration:none;cursor:pointer}.primary{background:var(--blue);color:white}.secondary{background:#172842;color:var(--text);border:1px solid var(--line)}.good{background:var(--green);color:#051308}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.metric{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}.metric b{display:block;font-size:18px;margin-top:4px}
+.day{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}.dayhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 8px;color:var(--muted);font-size:12px}
+.stop{margin-top:14px;border-top:1px solid #203653;padding-top:12px}.stop:first-of-type{border-top:0}.stopTitle{font-weight:850;font-size:17px}.addr{margin:5px 0}.meta{font-size:13px;color:var(--muted);line-height:1.55}.warn{color:#ffd18a}.ok{color:#a7f3d0}.error{color:#fecaca}.small{font-size:12px}.notice{margin-top:12px;border-left:4px solid var(--amber);background:#241d0c;padding:10px 12px;border-radius:8px}
+.qrrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}.qr{width:146px;background:white;color:#111;border-radius:10px;padding:7px;text-align:center}.qr img{width:132px;height:132px;display:block}.qr b{display:block;font-size:11px;margin-top:6px}
+.spinner{display:inline-block;width:18px;height:18px;border:3px solid #ffffff55;border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;vertical-align:-4px;margin-right:8px}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:820px){.grid,.grid3,.grid4,.summary{grid-template-columns:1fr}.wrap{padding:10px}}
+@media print{body{background:white;color:black}.form-card,.no-print{display:none!important}.card,.day,.metric{background:white;color:black;border-color:#bbb}.muted,.meta,.sub,label{color:#444}.qrrow,.btn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div class="hero">
+  <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Professional Driver Trip Planner</div></div></div>
+  <div class="version">VERSION 0.6.0 — DISPATCHER INPUT</div>
+ </div>
+
+ <div class="card form-card">
+  <h2>Build Trip</h2>
+  <div class="grid">
+   <div><label>Start / Yard</label><input id="yard" value="3916 West 65 South, Idaho Falls, ID 83402"></div>
+   <div><label>Pickup address</label><input id="pickup" value="2379 East 2300 North, Hamer, ID 83425"></div>
+   <div><label>Delivery address</label><input id="delivery" value="9950 S Reinhart Dr, Oak Creek, WI 53154"></div>
+   <div><label>Trip number</label><input id="trip" value="127482"></div>
+   <div><label>Driver</label><input id="driver" value="Byron Keith Price"></div>
+   <div><label>Delivery appointment</label><input id="deliveryTime" type="datetime-local" value="2026-10-08T05:00"></div>
+  </div>
+  <div class="grid4" style="margin-top:12px">
+   <div><label>Truck</label><input id="truck" value="237"></div>
+   <div><label>Trailer</label><input id="trailer" value="5206"></div>
+   <div><label>Commodity</label><input id="commodity" value="Potatoes — 840 pcs"></div>
+   <div><label>Loaded weight</label><input id="weight" value="42,000 lb"></div>
+  </div>
+  <div class="grid3" style="margin-top:12px">
+   <div><label>Reefer</label><input id="reefer" value="52 F CONTINUOUS"></div>
+   <div><label>Max drive hours/day</label><input id="maxHours" type="number" step=".25" value="11"></div>
+   <div><label>Cycle hours available</label><input id="cycle" type="number" step=".25" value="52.5"></div>
+   <div><label>Average speed (mph)</label><input id="avgSpeed" type="number" step="1" value="55"></div>
+  </div>
+  <div style="margin-top:12px"><label>Company route / highways</label><textarea id="notes">Idaho Falls → US-20 → ID-87 → MT-87 / US-287 → MT-84 → US-191 → I-90 → US-212 → US-85 → I-90 → I-94 → I-41 → WI-100 / local to Oak Creek</textarea></div>
+  <div class="grid" style="margin-top:12px">
+   <div><label>Approved fuel network</label><select id="network"><option>Pilot / Flying J only</option><option>Pilot / Flying J + Love's</option><option>All approved networks</option></select></div>
+   <div><label>Daily strategy</label><select id="strategy"><option>Hard first day, balanced second day, Oak Creek staging</option><option>Two stops per day — break/fuel + final rest</option><option>Balanced days</option></select></div>
+  </div>
+  <div class="actions">
+   <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
+   <button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button>
+   <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
+  </div>
+  <div class="small muted">Dispatcher inputs now flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
+ </div>
+
+ <div class="card" id="plan">
+   <div id="status" class="muted">Enter the trip details above, then press <b>Generate Trip Plan</b>.</div>
+   <div id="generated"></div>
+ </div>
+</div>
+
+<script>
+let lastRoute=null,lastOrigin=null,lastDest=null,lastPlanStops=[];
+
+const trip127482Stops=[
+ {kind:"yard",day:"START",name:"Western Transport Inc. — Yard",address:"3916 West 65 South, Idaho Falls, ID 83402",lat:null,lng:null},
+ {kind:"pickup",day:"MON",name:"Rigby Produce - Larsen",address:"2379 East 2300 North, Hamer, ID 83425",lat:null,lng:null},
+ {kind:"break",day:"MON",name:"Flying J Licensed Location #923",address:"2775 Old Hardin Rd, Billings, MT 59101",lat:45.8129422,lng:-108.4152832},
+ {kind:"rest",day:"MON",name:"Broadus Rest Area",address:"US-212 @ MM 81.1 / 2 Scale Road, Broadus, MT 59317",lat:45.4219079,lng:-105.3976020},
+ {kind:"break",day:"TUE",name:"Pilot Travel Center #599",address:"601 E 5th St, Murdo, SD 57559",lat:43.885669,lng:-100.704915},
+ {kind:"rest",day:"TUE",name:"Flying J Travel Center #716",address:"5201 N Granite Ln, Sioux Falls, SD 57107",lat:43.6029462,lng:-96.7676924},
+ {kind:"break",day:"WED",name:"Pilot Travel Center #164",address:"1101 Gateway Ave, Mauston, WI 53948",lat:43.7971573,lng:-90.0508920},
+ {kind:"rest",day:"WED",name:"Pilot Travel Center #40",address:"2031 W Ryan Rd, Oak Creek, WI 53154",lat:42.871496,lng:-87.944430},
+ {kind:"delivery",day:"THU",name:"Reinhart Foodservice - Oak Creek",address:"9950 S Reinhart Dr, Oak Creek, WI 53154",lat:null,lng:null}
+];
+
+function val(id){return document.getElementById(id).value.trim()}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function googleUrl(lat,lng,label){return lat!=null?`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`}
+function appleUrl(lat,lng,label){return lat!=null?`https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`:`https://maps.apple.com/?daddr=${encodeURIComponent(label)}&dirflg=d`}
+function qrUrl(url){return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`}
+function navValue(p){return p.lat!=null&&p.lng!=null ? p.lat+","+p.lng : p.address}
+function googleWholeTripUrl(stops){
+ if(!stops||stops.length<2)return "#";
+ const o=stops[0],d=stops[stops.length-1],middle=stops.slice(1,-1);
+ let u=`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(navValue(o))}&destination=${encodeURIComponent(navValue(d))}&travelmode=driving`;
+ if(middle.length)u+=`&waypoints=${encodeURIComponent(middle.map(navValue).join("|"))}`;
+ return u;
+}
+function appleWholeTripUrl(stops){
+ if(!stops||stops.length<2)return "#";
+ const d=stops[stops.length-1];
+ return `https://maps.apple.com/?daddr=${encodeURIComponent(navValue(d))}&dirflg=d`;
+}
+function wholeTripNavBlock(){
+ const gu=googleWholeTripUrl(lastPlanStops),au=appleWholeTripUrl(lastPlanStops);
+ return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip 127482</span></div>
+ <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
+ <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div></div>
+ <div class="notice small"><b>Apple Maps:</b> Route Stride keeps every stop below as its own Apple Maps button/QR because Apple's web handoff does not reliably accept the same ordered multi-waypoint route that Google Maps does.</div></div>`;
+}
+async function geocodeOne(q){
+ const u=`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q=${encodeURIComponent(q)}`;
+ const r=await fetch(u,{headers:{"Accept":"application/json"}});
+ if(!r.ok)return null;
+ const j=await r.json();
+ if(!j.length)return null;
+ return {lat:+j[0].lat,lng:+j[0].lon,name:j[0].display_name,matchedQuery:q};
+}
+async function geocode(q){
+ const raw=String(q||"").trim();
+ const compact=raw.replace(/\bEast\b/gi,"E").replace(/\bWest\b/gi,"W").replace(/\bNorth\b/gi,"N").replace(/\bSouth\b/gi,"S");
+ const expanded=raw.replace(/\bE\b/gi,"East").replace(/\bW\b/gi,"West").replace(/\bN\b/gi,"North").replace(/\bS\b/gi,"South");
+ const candidates=[raw,compact,expanded];
+ if(/2379\s+(E|East)\s+2300\s+(N|North).*Hamer/i.test(raw)){
+   candidates.push("Rigby Produce, Hamer, Idaho 83425");
+   candidates.push("Blaine Larsen Farms, Hamer, Idaho 83425");
+   candidates.push("2379 E 2300 N, Hamer, Idaho 83425");
+ }
+ for(const candidate of [...new Set(candidates)]){
+   const hit=await geocodeOne(candidate);
+   if(hit)return hit;
+ }
+ return null;
+}
+async function routeThrough(points){
+ const routed=points.filter(p=>p.lat!=null&&p.lng!=null);
+ if(routed.length<2)return null;
+ const coords=routed.map(p=>p.lng+","+p.lat).join(";");
+ const u=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
+ const r=await fetch(u);if(!r.ok)return null;const j=await r.json();if(!j.routes||!j.routes.length)return null;return j.routes[0]
+}
+function navBlock(s){
+ const gu=googleUrl(s.lat,s.lng,s.address),au=appleUrl(s.lat,s.lng,s.address);
+ const gpx=s.lat!=null&&s.lng!=null
+   ? `<button class="btn secondary" type="button" onclick='downloadPointGPX(${JSON.stringify(s.name)},${JSON.stringify(s.address)},${s.lat},${s.lng})'>Garmin GPX</button>`
+   : `<span class="badge warn">Garmin exact point pending GPS coordinate</span>`;
+ return `<div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Apple Maps</a>${gpx}</div>
+ <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Google Maps QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Maps QR</b></div></div>`;
+}
+function xml(s){return String(s).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]))}
+function save(text,name,type){const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),500)}
+function downloadPointGPX(name,address,lat,lng){const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
+function downloadRouteGPX(){
+ if(!lastPlanStops.length){alert("Generate the trip plan first.");return}
+ const pts=lastPlanStops.filter(p=>p.lat!=null&&p.lng!=null).map(p=>`<wpt lat="${p.lat}" lon="${p.lng}"><name>${xml(p.name)}</name><desc>${xml(p.address||"")}</desc></wpt>`).join("");
+ let trk="";
+ if(lastRoute&&lastRoute.geometry&&lastRoute.geometry.coordinates){trk=`<trk><name>Route Stride Trip 127482</name><trkseg>${lastRoute.geometry.coordinates.map(p=>`<trkpt lat="${p[1]}" lon="${p[0]}"></trkpt>`).join("")}</trkseg></trk>`}
+ const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1">${pts}${trk}</gpx>`;
+ save(g,"Route_Stride_Trip_127482.gpx","application/gpx+xml")
+}
+function stopCard(s,title,note){
+ const target=s.lat!=null&&s.lng!=null ? `Navigation target: ${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}` : "Navigation target: address-based Google/Apple handoff; exact Garmin coordinate not resolved by the public geocoder.";
+ return `<div class="stop"><div class="stopTitle">${esc(title)} — ${esc(s.name)}</div><div class="addr">${esc(s.address)}</div><div class="meta">${note}<br>${target}</div>${navBlock(s)}</div>`;
+}
+async function build127482(){
+ const status=document.getElementById("status"),gen=document.getElementById("generated");
+ status.innerHTML='<span class="spinner"></span>Loading exact Trip 127482 stops and building the whole-trip navigation handoff…';
+ const [yard,delivery]=await Promise.all([geocode(val("yard")),geocode(val("delivery"))]);
+ if(!yard)throw new Error("Could not locate yard: "+val("yard"));
+ if(!delivery)throw new Error("Could not locate delivery: "+val("delivery"));
+ const stops=trip127482Stops.map(s=>({...s}));
+ Object.assign(stops[0],yard);stops[0].name="Western Transport Inc. — Yard";stops[0].address=val("yard");
+ // Hamer rural grid address is intentionally NOT sent through the public geocoder.
+ // Google/Apple receive the full street address directly; Garmin omits this point
+ // until an exact verified facility coordinate is available.
+ stops[1].lat=null;stops[1].lng=null;stops[1].name="Rigby Produce - Larsen";stops[1].address=val("pickup");
+ Object.assign(stops[8],delivery);stops[8].name="Reinhart Foodservice - Oak Creek";stops[8].address=val("delivery");
+ lastPlanStops=stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng}));
+ lastOrigin=lastPlanStops[0];lastDest=lastPlanStops[lastPlanStops.length-1];
+ try{lastRoute=await routeThrough(lastPlanStops)}catch(e){lastRoute=null}
+
+ const d1=stopCard(stops[1],"PICKUP","Potatoes — 840 pcs • 42,000 lb • pulp product several times while loading and record readings on BOL.")
+   +stopCard(stops[2],"30-MIN BREAK / FUEL","Flying J #923 • I-90 Exit 455 • roughly 357 route miles from Idaho Falls / about 6.5 PC*Miler hours.")
+   +stopCard(stops[3],"FINAL REST","Broadus Rest Area • US-212 MM 81.1 • PC*Miler anchor: 517.9 mi / 9:22 from Idaho Falls. Fuel before leaving Billings.");
+ const d2=stopCard(stops[4],"30-MIN BREAK / FUEL","Pilot #599 • I-90 Exit 192 • roughly 300 mi from Broadus; midpoint fuel/break target.")
+   +stopCard(stops[5],"FINAL REST","Flying J #716 • I-29 Exit 83 • stage after roughly 495 mi from Broadus.");
+ const d3=stopCard(stops[6],"30-MIN BREAK / FUEL","Pilot #164 • I-90/94 Exit 69 • approximately 360 mi from Sioux Falls.")
+   +stopCard(stops[7],"FINAL REST / STAGING","Pilot #40 • I-94/41 Exit 322 • stage Wednesday night for the short 5:00 AM receiver move.");
+ const d4=stopCard(stops[8],"DELIVERY","Reinhart Foodservice - Oak Creek • appointment Thursday, Oct 8, 2026 at 5:00 AM.");
+
+ status.innerHTML='<span class="ok"><b>TRIP 127482 LOADED.</b> This test is using the Professional Driver Trip Plan stops, not generic midpoint checkpoints.</span>';
+ gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip 127482 • ${esc(val("driver"))} • Truck ${esc(val("truck"))} • Trailer ${esc(val("trailer"))}</div></div><div class="version">v0.5.2 TEST — 127482</div></div>
+ <div class="summary"><div class="metric">PC*Miler total<b>1,521.1 mi</b></div><div class="metric">PC*Miler drive<b>26:21</b></div><div class="metric">Planned drive days<b>4</b></div><div class="metric">Delivery<b>Thu 5:00 AM</b></div></div>
+ <div class="notice small"><b>Load:</b> ${esc(val("commodity"))} • ${esc(val("weight"))} • Reefer ${esc(val("reefer"))}<br><b>Strategy:</b> Hard first day, balanced second day, stage at Oak Creek Wednesday night for a very short Thursday delivery.<br><b>Company route:</b> ${esc(val("notes"))}</div>
+ ${wholeTripNavBlock()}
+ <div class="day"><div class="dayhead"><div><h3>DAY 1 — MONDAY, OCT 5</h3><div class="muted small">~517.9 mi • ~9 hr 22 min company-route drive • Idaho Falls yard → Hamer → Billings → Broadus</div></div><span class="badge">Hard first day</span></div>${d1}</div>
+ <div class="day"><div class="dayhead"><div><h3>DAY 2 — TUESDAY, OCT 6</h3><div class="muted small">~495 mi • plan ~8–9 drive hr • Broadus → Murdo → Sioux Falls</div></div><span class="badge">Balanced</span></div>${d2}</div>
+ <div class="day"><div class="dayhead"><div><h3>DAY 3 — WEDNESDAY, OCT 7</h3><div class="muted small">~508 mi • plan ~8.5–9 drive hr • Sioux Falls → Mauston → Oak Creek</div></div><span class="badge">Stage near receiver</span></div>${d3}</div>
+ <div class="day"><div class="dayhead"><div><h3>DAY 4 — THURSDAY, OCT 8</h3><div class="muted small">~1–2 mi • ~5–10 min local move • Oak Creek staging → receiver</div></div><span class="badge">5:00 AM delivery</span></div>${d4}</div>
+ <div class="notice small"><b>HOS:</b> Actual ELD/PeopleNet hours control. <b>Truck-safe route:</b> Follow company PC*Miler corridor, Garmin dēzl truck profile, posted restrictions, and dispatch instructions. <b>Reefer:</b> 52 F continuous. <b>Timing:</b> pickup entry on the load card shows 00:00–00:00 Monday, so Day 1 clock times shift to actual release after loading.</div>
+ <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
+ document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+async function buildGenericPlan(){
+ const status=document.getElementById("status"),gen=document.getElementById("generated");
+ const trip=val("trip")||"UNNUMBERED",pickupAddress=val("pickup"),deliveryAddress=val("delivery");
+ const maxHours=Math.max(1,parseFloat(val("maxHours"))||9),avgSpeed=Math.max(1,parseFloat(val("avgSpeed"))||55);
+ const cycle=Math.max(0,parseFloat(val("cycle"))||0),strategy=val("strategy"),network=val("network");
+ if(!pickupAddress||!deliveryAddress)throw new Error("Pickup and delivery addresses are required.");
+ status.innerHTML='<span class="spinner"></span>Building plan from dispatcher inputs…';
+ const [pickup,delivery]=await Promise.all([geocode(pickupAddress),geocode(deliveryAddress)]);
+ if(!pickup)throw new Error("Could not locate pickup: "+pickupAddress);
+ if(!delivery)throw new Error("Could not locate delivery: "+deliveryAddress);
+ let route=null;try{route=await routeThrough([pickup,delivery])}catch(e){}
+ const routeMiles=route&&Number.isFinite(route.distance)?route.distance/1609.344:null;
+ const routeHours=route&&Number.isFinite(route.duration)?route.duration/3600:null;
+ const planningMiles=routeMiles!=null?routeMiles:null;
+ const estimatedDriveHours=planningMiles!=null?planningMiles/avgSpeed:routeHours;
+ const plannedDays=estimatedDriveHours!=null?Math.max(1,Math.ceil(estimatedDriveHours/maxHours)):1;
+ const deliveryTime=val("deliveryTime");
+ const pickupStop={name:"Pickup",address:pickupAddress,lat:pickup.lat,lng:pickup.lng};
+ const deliveryStop={name:"Delivery",address:deliveryAddress,lat:delivery.lat,lng:delivery.lng};
+ lastPlanStops=[pickupStop,deliveryStop];lastOrigin=pickupStop;lastDest=deliveryStop;lastRoute=route;
+ const distanceText=planningMiles!=null?Math.round(planningMiles).toLocaleString()+" mi":"Pending";
+ const hoursText=estimatedDriveHours!=null?estimatedDriveHours.toFixed(1)+" hr":"Pending";
+ const perDay=planningMiles!=null?Math.ceil(planningMiles/plannedDays):null;
+ let days="";
+ for(let i=1;i<=plannedDays;i++){
+   const final=i===plannedDays;
+   const target=perDay!=null?Math.min(perDay,Math.max(0,Math.round(planningMiles-perDay*(i-1)))):null;
+   days+=`<div class="day"><div class="dayhead"><div><h3>DAY ${i}${final?" — DELIVERY DAY":""}</h3><div class="muted small">${target!=null?"Planning target ~"+target+" mi • ":""}up to ${maxHours} drive hr</div></div><span class="badge">${final?"Delivery leg":"Planned drive day"}</span></div>
+   <div class="notice small"><b>Stop strategy:</b> ${esc(strategy)}<br><b>Fuel network:</b> ${esc(network)}<br>${final?"Finish at "+esc(deliveryAddress):"Select/verify the break-fuel and final-rest locations on the approved truck corridor before dispatch."}</div></div>`;
+ }
+ status.innerHTML='<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS.</b></span>';
+ gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(val("driver"))}</div></div><div class="version">v0.6.0 DISPATCHER INPUT</div></div>
+ <div class="summary"><div class="metric">Pickup<b>${esc(pickupAddress)}</b></div><div class="metric">Delivery<b>${esc(deliveryAddress)}</b></div><div class="metric">Planning distance<b>${distanceText}</b></div><div class="metric">Planned drive<b>${hoursText}</b></div></div>
+ <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Public map routing here is a distance-planning aid, not truck-route validation. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
+ ${wholeTripNavBlock()}
+ ${days}
+ <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
+ document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+async function buildPlan(){
+ const btn=document.getElementById("generateBtn");
+ btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Building Trip Plan…';
+ try{
+   if(val("trip")==="127482"){await build127482();}
+   else{await buildGenericPlan();}
+ }catch(e){document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>'}
+ finally{btn.disabled=false;btn.textContent="Generate Trip Plan"}
+}
+</script>
+</body></html>
