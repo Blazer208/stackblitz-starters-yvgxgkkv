@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Route Stride — v0.5 Trip 127482 Test</title>
+<title>Route Stride — Dispatcher Trip Planner</title>
 <style>
 :root{--bg:#0a1220;--panel:#111c2e;--panel2:#081525;--line:#2b405f;--text:#f4f7fb;--muted:#a9b8cf;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--amber:#f59e0b}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
@@ -24,8 +24,8 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 <body>
 <div class="wrap">
  <div class="hero">
-  <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Professional Driver Trip Plan test</div></div></div>
-  <div class="version">VERSION 0.5.2 — HAMER BYPASS</div>
+  <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Professional Driver Trip Planner</div></div></div>
+  <div class="version">VERSION 0.6.0 — DISPATCHER INPUT</div>
  </div>
 
  <div class="card form-card">
@@ -48,6 +48,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <div><label>Reefer</label><input id="reefer" value="52 F CONTINUOUS"></div>
    <div><label>Max drive hours/day</label><input id="maxHours" type="number" step=".25" value="11"></div>
    <div><label>Cycle hours available</label><input id="cycle" type="number" step=".25" value="52.5"></div>
+   <div><label>Average speed (mph)</label><input id="avgSpeed" type="number" step="1" value="55"></div>
   </div>
   <div style="margin-top:12px"><label>Company route / highways</label><textarea id="notes">Idaho Falls → US-20 → ID-87 → MT-87 / US-287 → MT-84 → US-191 → I-90 → US-212 → US-85 → I-90 → I-94 → I-41 → WI-100 / local to Oak Creek</textarea></div>
   <div class="grid" style="margin-top:12px">
@@ -55,15 +56,15 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <div><label>Daily strategy</label><select id="strategy"><option>Hard first day, balanced second day, Oak Creek staging</option><option>Two stops per day — break/fuel + final rest</option><option>Balanced days</option></select></div>
   </div>
   <div class="actions">
-   <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip 127482 Test Plan</button>
+   <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
    <button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button>
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
-  <div class="small muted">Trip 127482 is loaded from the Professional Driver Trip Plan. Exact planned stops are preserved. Actual ELD/PeopleNet, company routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
+  <div class="small muted">Dispatcher inputs now flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
  </div>
 
  <div class="card" id="plan">
-   <div id="status" class="muted">Trip 127482 is preloaded. Press <b>Generate Trip 127482 Test Plan</b>.</div>
+   <div id="status" class="muted">Enter the trip details above, then press <b>Generate Trip Plan</b>.</div>
    <div id="generated"></div>
  </div>
 </div>
@@ -201,14 +202,54 @@ async function build127482(){
  <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
  document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
 }
+
+async function buildGenericPlan(){
+ const status=document.getElementById("status"),gen=document.getElementById("generated");
+ const trip=val("trip")||"UNNUMBERED",pickupAddress=val("pickup"),deliveryAddress=val("delivery");
+ const maxHours=Math.max(1,parseFloat(val("maxHours"))||9),avgSpeed=Math.max(1,parseFloat(val("avgSpeed"))||55);
+ const cycle=Math.max(0,parseFloat(val("cycle"))||0),strategy=val("strategy"),network=val("network");
+ if(!pickupAddress||!deliveryAddress)throw new Error("Pickup and delivery addresses are required.");
+ status.innerHTML='<span class="spinner"></span>Building plan from dispatcher inputs…';
+ const [pickup,delivery]=await Promise.all([geocode(pickupAddress),geocode(deliveryAddress)]);
+ if(!pickup)throw new Error("Could not locate pickup: "+pickupAddress);
+ if(!delivery)throw new Error("Could not locate delivery: "+deliveryAddress);
+ let route=null;try{route=await routeThrough([pickup,delivery])}catch(e){}
+ const routeMiles=route&&Number.isFinite(route.distance)?route.distance/1609.344:null;
+ const routeHours=route&&Number.isFinite(route.duration)?route.duration/3600:null;
+ const planningMiles=routeMiles!=null?routeMiles:null;
+ const estimatedDriveHours=planningMiles!=null?planningMiles/avgSpeed:routeHours;
+ const plannedDays=estimatedDriveHours!=null?Math.max(1,Math.ceil(estimatedDriveHours/maxHours)):1;
+ const deliveryTime=val("deliveryTime");
+ const pickupStop={name:"Pickup",address:pickupAddress,lat:pickup.lat,lng:pickup.lng};
+ const deliveryStop={name:"Delivery",address:deliveryAddress,lat:delivery.lat,lng:delivery.lng};
+ lastPlanStops=[pickupStop,deliveryStop];lastOrigin=pickupStop;lastDest=deliveryStop;lastRoute=route;
+ const distanceText=planningMiles!=null?Math.round(planningMiles).toLocaleString()+" mi":"Pending";
+ const hoursText=estimatedDriveHours!=null?estimatedDriveHours.toFixed(1)+" hr":"Pending";
+ const perDay=planningMiles!=null?Math.ceil(planningMiles/plannedDays):null;
+ let days="";
+ for(let i=1;i<=plannedDays;i++){
+   const final=i===plannedDays;
+   const target=perDay!=null?Math.min(perDay,Math.max(0,Math.round(planningMiles-perDay*(i-1)))):null;
+   days+=`<div class="day"><div class="dayhead"><div><h3>DAY ${i}${final?" — DELIVERY DAY":""}</h3><div class="muted small">${target!=null?"Planning target ~"+target+" mi • ":""}up to ${maxHours} drive hr</div></div><span class="badge">${final?"Delivery leg":"Planned drive day"}</span></div>
+   <div class="notice small"><b>Stop strategy:</b> ${esc(strategy)}<br><b>Fuel network:</b> ${esc(network)}<br>${final?"Finish at "+esc(deliveryAddress):"Select/verify the break-fuel and final-rest locations on the approved truck corridor before dispatch."}</div></div>`;
+ }
+ status.innerHTML='<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS.</b></span>';
+ gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(val("driver"))}</div></div><div class="version">v0.6.0 DISPATCHER INPUT</div></div>
+ <div class="summary"><div class="metric">Pickup<b>${esc(pickupAddress)}</b></div><div class="metric">Delivery<b>${esc(deliveryAddress)}</b></div><div class="metric">Planning distance<b>${distanceText}</b></div><div class="metric">Planned drive<b>${hoursText}</b></div></div>
+ <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Public map routing here is a distance-planning aid, not truck-route validation. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
+ ${wholeTripNavBlock()}
+ ${days}
+ <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
+ document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
 async function buildPlan(){
  const btn=document.getElementById("generateBtn");
- btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Building Trip 127482…';
+ btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Building Trip Plan…';
  try{
-   if(val("trip")==="127482"){await build127482();}
-   else{throw new Error("This v0.5 test build is currently loaded for Trip 127482. Change back to 127482 to run the preset test.")}
+   if(val("trip")==="127482"){await build127482();}\n   else{await buildGenericPlan();}
  }catch(e){document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>'}
- finally{btn.disabled=false;btn.textContent="Generate Trip 127482 Test Plan"}
+ finally{btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
 </script>
 </body></html>
