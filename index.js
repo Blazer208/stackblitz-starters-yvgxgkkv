@@ -19,11 +19,15 @@ const mime = {
 };
 
 const server = http.createServer((req, res) => {
-  const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  let urlPath;
+  try { urlPath = decodeURIComponent((req.url || '/').split('?')[0]); }
+  catch { res.writeHead(400); return res.end('Bad request'); }
+  if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, {Allow: 'GET, HEAD'}); return res.end('Method not allowed'); }
   const requested = urlPath === '/' ? '/index.html' : urlPath;
   const filePath = path.normalize(path.join(root, requested));
 
-  if (!filePath.startsWith(root)) {
+  const publicFiles = new Set(['/index.html', '/planner.html', '/Route_Stride_Demo.html']);
+  if (!publicFiles.has(requested)) {
     res.writeHead(403);
     return res.end('Forbidden');
   }
@@ -60,7 +64,7 @@ const server = http.createServer((req, res) => {
       'X-Route-Stride-Version': '0.5.3'
     };
     res.writeHead(200, headers);
-    res.end(data);
+    res.end(req.method === 'HEAD' ? undefined : data);
   });
 });
 
