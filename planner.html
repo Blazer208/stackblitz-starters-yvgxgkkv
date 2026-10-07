@@ -70,7 +70,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 </div>
 
 <script>
-let lastRoute=null,lastOrigin=null,lastDest=null,lastPlanStops=[];
+let lastRoute=null,lastOrigin=null,lastDest=null,lastPlanStops=[],lastTrip="";
 
 const trip127482Stops=[
  {kind:"yard",day:"START",name:"Western Transport Inc. — Yard",address:"3916 West 65 South, Idaho Falls, ID 83402",lat:null,lng:null},
@@ -104,7 +104,7 @@ function appleWholeTripUrl(stops){
 }
 function wholeTripNavBlock(){
  const gu=googleWholeTripUrl(lastPlanStops),au=appleWholeTripUrl(lastPlanStops);
- return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip 127482</span></div>
+ return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip ${esc(lastTrip)}</span></div>
  <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
  <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div></div>
  <div class="notice small"><b>Apple Maps:</b> Route Stride keeps every stop below as its own Apple Maps button/QR because Apple's web handoff does not reliably accept the same ordered multi-waypoint route that Google Maps does.</div></div>`;
@@ -134,7 +134,8 @@ async function geocode(q){
  return null;
 }
 async function routeThrough(points){
- const routed=points.filter(p=>p.lat!=null&&p.lng!=null);
+ if(points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)))throw new Error("Every route stop must have resolved coordinates; no stops may be skipped.");
+ const routed=points;
  if(routed.length<2)return null;
  const coords=routed.map(p=>p.lng+","+p.lat).join(";");
  const u=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
@@ -153,11 +154,12 @@ function save(text,name,type){const b=new Blob([text],{type}),u=URL.createObject
 function downloadPointGPX(name,address,lat,lng){const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
 function downloadRouteGPX(){
  if(!lastPlanStops.length){alert("Generate the trip plan first.");return}
+ if(lastPlanStops.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng))){alert("Resolve every stop before exporting. Export would otherwise omit a stop.");return}
  const pts=lastPlanStops.filter(p=>p.lat!=null&&p.lng!=null).map(p=>`<wpt lat="${p.lat}" lon="${p.lng}"><name>${xml(p.name)}</name><desc>${xml(p.address||"")}</desc></wpt>`).join("");
  let trk="";
- if(lastRoute&&lastRoute.geometry&&lastRoute.geometry.coordinates){trk=`<trk><name>Route Stride Trip 127482</name><trkseg>${lastRoute.geometry.coordinates.map(p=>`<trkpt lat="${p[1]}" lon="${p[0]}"></trkpt>`).join("")}</trkseg></trk>`}
+ if(lastRoute&&lastRoute.geometry&&lastRoute.geometry.coordinates){trk=`<trk><name>Route Stride Trip ${xml(lastTrip)}</name><trkseg>${lastRoute.geometry.coordinates.map(p=>`<trkpt lat="${p[1]}" lon="${p[0]}"></trkpt>`).join("")}</trkseg></trk>`}
  const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1">${pts}${trk}</gpx>`;
- save(g,"Route_Stride_Trip_127482.gpx","application/gpx+xml")
+ save(g,"Route_Stride_Trip_"+lastTrip.replace(/[^a-z0-9_-]/gi,"_")+".gpx","application/gpx+xml")
 }
 function stopCard(s,title,note){
  const target=s.lat!=null&&s.lng!=null ? `Navigation target: ${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}` : "Navigation target: address-based Google/Apple handoff; exact Garmin coordinate not resolved by the public geocoder.";
@@ -216,7 +218,8 @@ async function buildGenericPlan(){
  let route=null;try{route=await routeThrough([pickup,delivery])}catch(e){}
  const routeMiles=route&&Number.isFinite(route.distance)?route.distance/1609.344:null;
  const routeHours=route&&Number.isFinite(route.duration)?route.duration/3600:null;
- const planningMiles=routeMiles!=null?routeMiles:null;
+ if(!Number.isFinite(routeMiles)||routeMiles<=0)throw new Error("No route estimate is available. Try again; a daily plan cannot be calculated without distance.");
+ const planningMiles=routeMiles;
  const estimatedDriveHours=planningMiles!=null?planningMiles/avgSpeed:routeHours;
  const plannedDays=estimatedDriveHours!=null?Math.max(1,Math.ceil(estimatedDriveHours/maxHours)):1;
  const deliveryTime=val("deliveryTime");
@@ -233,7 +236,7 @@ async function buildGenericPlan(){
    days+=`<div class="day"><div class="dayhead"><div><h3>DAY ${i}${final?" — DELIVERY DAY":""}</h3><div class="muted small">${target!=null?"Planning target ~"+target+" mi • ":""}up to ${maxHours} drive hr</div></div><span class="badge">${final?"Delivery leg":"Planned drive day"}</span></div>
    <div class="notice small"><b>Stop strategy:</b> ${esc(strategy)}<br><b>Fuel network:</b> ${esc(network)}<br>${final?"Finish at "+esc(deliveryAddress):"Select/verify the break-fuel and final-rest locations on the approved truck corridor before dispatch."}</div></div>`;
  }
- status.innerHTML='<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS.</b></span>';
+ status.innerHTML='<span class="ok"><b>TRIP '+esc(trip)+' ESTIMATE ONLY — STOPS AND TRUCK ROUTE REQUIRE VERIFICATION.</b></span>';
  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(val("driver"))}</div></div><div class="version">v0.6.0 DISPATCHER INPUT</div></div>
  <div class="summary"><div class="metric">Pickup<b>${esc(pickupAddress)}</b></div><div class="metric">Delivery<b>${esc(deliveryAddress)}</b></div><div class="metric">Planning distance<b>${distanceText}</b></div><div class="metric">Planned drive<b>${hoursText}</b></div></div>
  <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Public map routing here is a distance-planning aid, not truck-route validation. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
@@ -245,9 +248,11 @@ async function buildGenericPlan(){
 
 async function buildPlan(){
  const btn=document.getElementById("generateBtn");
+ lastRoute=null;lastPlanStops=[];lastTrip=val("trip")||"UNNUMBERED";
+ document.getElementById("generated").innerHTML="";
  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Building Trip Plan…';
  try{
-   if(val("trip")==="127482"){await build127482();}
+   if(val("trip")==="127482" && val("pickup")===trip127482Stops[1].address && val("delivery")===trip127482Stops[8].address && val("yard")===trip127482Stops[0].address){await build127482();}
    else{await buildGenericPlan();}
  }catch(e){document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>'}
  finally{btn.disabled=false;btn.textContent="Generate Trip Plan"}
