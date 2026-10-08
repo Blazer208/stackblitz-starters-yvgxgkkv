@@ -110,12 +110,18 @@ function truckerPathUrl(stops){
  if(middle.length)u+=`&paddr=${middle.map(p=>p.lat+","+p.lng).join("|")}`;
  return u;
 }
-function hammerUrl(stops){
- if(!stops||!stops.length)return "#";
- const usable=stops.filter(p=>p.lat!=null&&p.lng!=null);
- if(!usable.length)return "#";
- const handoff=usable.slice(-5);
- return `https://hammerapp.com/app/route/${handoff.map(p=>encodeURIComponent(p.lat+","+p.lng)).join("/")}`;
+// Hammer's published URL handoff allows a maximum of five waypoints per link.
+// Split with one shared boundary stop so no location is silently discarded.
+function hammerRouteSegments(stops){
+ if(!Array.isArray(stops)||stops.length<2)return [];
+ const segments=[];
+ for(let start=0;start<stops.length-1;start+=4){
+   const section=stops.slice(start,start+5);
+   const url='https://hammerapp.com/app/route/'+section.map(p=>encodeURIComponent(navValue(p))).join('/');
+   segments.push({url,from:section[0].name||section[0].address,to:section[section.length-1].name||section[section.length-1].address,count:section.length});
+   if(start+5>=stops.length)break;
+ }
+ return segments;
 }
 function navValue(p){return p.lat!=null&&p.lng!=null ? p.lat+","+p.lng : p.address}
 function googleWholeTripUrl(stops){
@@ -131,11 +137,15 @@ function appleWholeTripUrl(stops){
  return `https://maps.apple.com/?daddr=${encodeURIComponent(navValue(d))}&dirflg=d`;
 }
 function wholeTripNavBlock(){
- const gu=googleWholeTripUrl(lastPlanStops),au=appleWholeTripUrl(lastPlanStops),tu=truckerPathUrl(lastPlanStops),hu=hammerUrl(lastPlanStops);
+ const gu=googleWholeTripUrl(lastPlanStops),au=appleWholeTripUrl(lastPlanStops);
+ const hammerSegments=hammerRouteSegments(lastPlanStops);
+ const hammerActions=hammerSegments.map((s,i)=>`<a class="btn secondary" target="_blank" rel="noopener" href="${esc(s.url)}">Open Hammer — Leg ${i+1}</a>`).join('');
+ const hammerQrs=hammerSegments.map((s,i)=>`<div class="qr"><img alt="Hammer leg ${i+1} QR code" src="${qrUrl(s.url)}"><b>Hammer Leg ${i+1} QR</b></div>`).join('');
+ const hammerDetails=hammerSegments.map((s,i)=>`<div class="meta">Leg ${i+1}: ${esc(s.from)} → ${esc(s.to)} (${s.count} locations)</div>`).join('');
  return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip ${esc(val("trip")||"UNNUMBERED")}</span></div>
- <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a><a class="btn secondary" href="${tu}">Open in Trucker Path</a><a class="btn secondary" target="_blank" rel="noopener" href="${hu}">Open in Hammer</a><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
- <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div><div class="qr"><img src="${qrUrl(tu)}"><b>Trucker Path QR</b></div><div class="qr"><img src="${qrUrl(hu)}"><b>Hammer QR</b></div></div>
- <div class="notice small"><b>Apple Maps:</b> Route Stride keeps every stop below as its own Apple Maps button/QR because Apple's web handoff does not reliably accept the same ordered multi-waypoint route that Google Maps does.</div></div>`;
+ <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a><a class="btn secondary" href="${truckerPathUrl(lastPlanStops)}">Open in Trucker Path (verify stops)</a>${hammerActions}<button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
+ <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div><div class="qr"><img src="${qrUrl(truckerPathUrl(lastPlanStops))}"><b>Trucker Path QR</b></div>${hammerQrs}</div>
+ <div class="notice small"><b>Hammer:</b> Each linked leg supports up to five waypoints. Open legs in numbered order. This plan has ${lastPlanStops.length} locations, including addresses without GPS coordinates. ${hammerDetails} Verify all locations and your truck settings in Hammer before starting. <b>Apple Maps:</b> Each stop also has a separate Apple Maps handoff below; the Apple delivery button does not include intermediate stops.</div></div>`;
 }
 async function geocodeOne(q){
  const u=`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q=${encodeURIComponent(q)}`;
