@@ -101,6 +101,22 @@ function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",
 function googleUrl(lat,lng,label){return lat!=null?`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`}
 function appleUrl(lat,lng,label){return lat!=null?`https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`:`https://maps.apple.com/?daddr=${encodeURIComponent(label)}&dirflg=d`}
 function qrUrl(url){return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`}
+function truckerPathUrl(stops){
+ if(!stops||!stops.length)return "#";
+ const d=stops[stops.length-1],middle=stops.slice(0,-1).filter(p=>p.lat!=null&&p.lng!=null);
+ let u=`truckerpath://navigate?lat=${encodeURIComponent(d.lat!=null?d.lat:"")}&lon=${encodeURIComponent(d.lng!=null?d.lng:"")}`;
+ if(middle.length)u+=`&waypoints=${encodeURIComponent(middle.map(p=>p.lat+","+p.lng).join("|"))}`;
+ return u;
+}
+function hammerUrl(stops){
+ if(!stops||!stops.length)return "#";
+ const usable=stops.filter(p=>p.lat!=null&&p.lng!=null),d=usable[usable.length-1];
+ if(!d)return "#";
+ const middle=usable.slice(Math.max(0,usable.length-6),-1);
+ let u=`https://hammerapp.com/route?destination=${encodeURIComponent(d.lat+","+d.lng)}`;
+ if(middle.length)u+=`&waypoints=${encodeURIComponent(middle.map(p=>p.lat+","+p.lng).join("|"))}`;
+ return u;
+}
 function navValue(p){return p.lat!=null&&p.lng!=null ? p.lat+","+p.lng : p.address}
 function googleWholeTripUrl(stops){
  if(!stops||stops.length<2)return "#";
@@ -115,10 +131,10 @@ function appleWholeTripUrl(stops){
  return `https://maps.apple.com/?daddr=${encodeURIComponent(navValue(d))}&dirflg=d`;
 }
 function wholeTripNavBlock(){
- const gu=googleWholeTripUrl(lastPlanStops),au=appleWholeTripUrl(lastPlanStops);
+ const gu=googleWholeTripUrl(lastPlanStops),au=appleWholeTripUrl(lastPlanStops),tu=truckerPathUrl(lastPlanStops),hu=hammerUrl(lastPlanStops);
  return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip ${esc(val("trip")||"UNNUMBERED")}</span></div>
- <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
- <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div></div>
+ <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a><a class="btn secondary" href="${tu}">Open in Trucker Path</a><a class="btn secondary" target="_blank" rel="noopener" href="${hu}">Open in Hammer</a><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
+ <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div><div class="qr"><img src="${qrUrl(tu)}"><b>Trucker Path QR</b></div><div class="qr"><img src="${qrUrl(hu)}"><b>Hammer QR</b></div></div>
  <div class="notice small"><b>Apple Maps:</b> Route Stride keeps every stop below as its own Apple Maps button/QR because Apple's web handoff does not reliably accept the same ordered multi-waypoint route that Google Maps does.</div></div>`;
 }
 async function geocodeOne(q){
