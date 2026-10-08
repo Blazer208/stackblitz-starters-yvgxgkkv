@@ -18,12 +18,61 @@ const mime = {
   '.gpx': 'application/gpx+xml'
 };
 
+function json(res, code, body) {
+  res.writeHead(code, {'Content-Type':'application/json', 'Cache-Control':'no-store'});
+  res.end(JSON.stringify(body));
+}
+const routeCache = new Map();
+let quotaWindow=Date.now(), quotaCalls=0;
+async function truckRoute(req, res) {
+  if (req.method !== 'POST') return json(res,405,{error:'Use POST'});
+  const key = process.env.TRIMBLE_API_KEY;
+  if (!key) return json(res,503,{error:'Truck routing is not configured'});
+  try {
+    let data='';
+    for await (const chunk of req) {
+      data += chunk;
+      if (data.length > 32768) return json(res,413,{error:'Request too large'});
+    }
+    const {points}=JSON.parse(data);
+    if (!Array.isArray(points) || points.length<2 || points.length>25 || points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)||Math.abs(p.lat)>90||Math.abs(p.lng)>180))
+      return json(res,400,{error:'Supply 2–25 valid coordinate stops'});
+    const cacheKey=JSON.stringify(points.map(p=>[p.lat,p.lng]));
+    if(routeCache.has(cacheKey))return json(res,200,routeCache.get(cacheKey));
+    if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}
+    if(++quotaCalls>20)return json(res,429,{error:'Trial routing request limit reached; retry later'});
+    const response=await fetch('https://pcmiler.alk.com/apis/rest/v1.0/Service.svc/route/routeReports', {
+      method:'POST', headers:{Authorization:key,'Content-Type':'application/json'},
+      signal:AbortSignal.timeout(25000),
+      body:JSON.stringify({ReportRoutes:[{Stops:points.map(p=>({Coords:{Lat:String(p.lat),Lon:String(p.lng)},Region:4})),
+        Options:{VehicleType:0,RoutingType:0,HighwayOnly:false,DistanceUnits:0},
+        ReportTypes:[{__type:'MileageReportType:http://pcmiler.alk.com/APIs/v1.0',TimeInSeconds:true}]}]})
+    });
+    if(!response.ok) return json(res,502,{error:'Trimble routing request failed',upstreamStatus:response.status});
+    const reports=await response.json();
+    const lines=reports.find(r=>Array.isArray(r.ReportLines))?.ReportLines;
+    if(!lines?.length || lines.some(l=>l.Stop?.Errors?.length)) return json(res,502,{error:'Trimble could not resolve all route stops'});
+    const end=lines[lines.length-1];
+    const hours=String(end.THours).split(':').map(Number);
+    const duration=hours.length===3 ? hours[0]*3600+hours[1]*60+hours[2] : Number(end.THours);
+    const distance=Number(end.TMiles)*1609.344;
+    if(!Number.isFinite(distance)||!Number.isFinite(duration)) return json(res,502,{error:'Invalid Trimble route totals'});
+    const result={distance,duration,provider:'Trimble PC*Miler',geometry:null,
+      profile:'Default truck dimensions; confirm actual vehicle profile and dispatch corridor',legs:lines};
+    if(routeCache.size>=100)routeCache.delete(routeCache.keys().next().value);
+    routeCache.set(cacheKey,result);
+    return json(res,200,result);
+  } catch(e) { return json(res,502,{error:'Truck routing unavailable; retry or contact dispatcher'}); }
+}
 const server = http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (urlPath === '/api/truck-route') return truckRoute(req,res);
+  if (urlPath.startsWith('/api/')) return json(res,404,{error:'Unknown API endpoint'});
+  if (['/index.js','/package.json','/package-lock.json'].includes(urlPath)) return json(res,403,{error:'Forbidden'});
   const requested = urlPath === '/' ? '/index.html' : urlPath;
   const filePath = path.normalize(path.join(root, requested));
 
-  if (!filePath.startsWith(root)) {
+  if (!filePath.startsWith(root + path.sep) || !Object.keys(mime).includes(path.extname(filePath).toLowerCase())) {
     res.writeHead(403);
     return res.end('Forbidden');
   }

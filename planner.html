@@ -146,12 +146,11 @@ async function geocode(q){
  return null;
 }
 async function routeThrough(points){
- const routed=points.filter(p=>p.lat!=null&&p.lng!=null);
- if(routed.length<2)return null;
- const coords=routed.map(p=>p.lng+","+p.lat).join(";");
- const u=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
- const r=await fetch(u);if(!r.ok)return null;const j=await r.json();if(!j.routes||!j.routes.length)return null;return j.routes[0]
+ if(points.some(p=>p.lat==null||p.lng==null))throw new Error('Resolve every stop coordinate before truck routing.');
+ const r=await fetch('/api/truck-route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:points.map(p=>({lat:p.lat,lng:p.lng}))})});
+ const j=await r.json();if(!r.ok)throw new Error(j.error||'Truck routing failed');return j;
 }
+
 function navBlock(s){
  const gu=googleUrl(s.lat,s.lng,s.address),au=appleUrl(s.lat,s.lng,s.address);
  const gpx=s.lat!=null&&s.lng!=null
@@ -185,7 +184,7 @@ async function build127532(){
  stops[7].address=val("delivery"); if(deliveryGeo){stops[7].lat=deliveryGeo.lat;stops[7].lng=deliveryGeo.lng}
  lastPlanStops=stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng}));
  lastOrigin=lastPlanStops[0]; lastDest=lastPlanStops[lastPlanStops.length-1];
- try{lastRoute=await routeThrough(lastPlanStops)}catch(e){lastRoute=null}
+ try{lastRoute=await routeThrough(lastPlanStops)}catch(e){lastRoute=null;throw e}
  const fri=stopCard(stops[0],"PICKUP","Friday, Oct 9 at 1:30 PM Central • 44 pallets • 41,127 lb.")
    +stopCard(stops[1],"30-MIN BREAK / FUEL","Pilot #1092 • Cedar Rapids, Iowa.")
    +stopCard(stops[2],"FINAL REST","Flying J #913 • Altoona, Iowa.");
@@ -204,7 +203,7 @@ async function build127532(){
  <div class="day"><div class="dayhead"><div><h3>DAY 2 — SATURDAY, OCT 10</h3><div class="muted small">Altoona → North Platte → Sidney</div></div><span class="badge">Run day</span></div>${sat}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 3 — SUNDAY, OCT 11</h3><div class="muted small">Sidney → Rock Springs → Springville</div></div><span class="badge">Stage near receiver</span></div>${sun}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 4 — MONDAY, OCT 12</h3><div class="muted small">Short local move to CANDYCO</div></div><span class="badge">8:00 AM MT delivery</span></div>${mon}</div>
- <div class="notice small"><b>Safety:</b> Actual ELD/PeopleNet hours, company/dispatch routing, Garmin dēzl truck profile, posted restrictions, weather and parking conditions control. Public-map routing is a planning/navigation handoff, not commercial-route validation.</div>`;
+ <div class="notice small"><b>Safety:</b> Actual ELD/PeopleNet hours, company/dispatch routing, Garmin dēzl truck profile, posted restrictions, weather and parking conditions control. Truck-route totals are available only when all stop coordinates resolve. Default truck dimensions and the dispatch corridor still need confirmation.</div>`;
  document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
@@ -223,7 +222,7 @@ async function build127482(){
  Object.assign(stops[8],delivery);stops[8].name="Reinhart Foodservice - Oak Creek";stops[8].address=val("delivery");
  lastPlanStops=stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng}));
  lastOrigin=lastPlanStops[0];lastDest=lastPlanStops[lastPlanStops.length-1];
- try{lastRoute=await routeThrough(lastPlanStops)}catch(e){lastRoute=null}
+ try{lastRoute=await routeThrough(lastPlanStops)}catch(e){lastRoute=null;throw e}
 
  const d1=stopCard(stops[1],"PICKUP","Potatoes — 840 pcs • 42,000 lb • pulp product several times while loading and record readings on BOL.")
    +stopCard(stops[2],"30-MIN BREAK / FUEL","Flying J #923 • I-90 Exit 455 • roughly 357 route miles from Idaho Falls / about 6.5 PC*Miler hours.")
@@ -258,11 +257,11 @@ async function buildGenericPlan(){
  const [pickup,delivery]=await Promise.all([geocode(pickupAddress),geocode(deliveryAddress)]);
  if(!pickup)throw new Error("Could not locate pickup: "+pickupAddress);
  if(!delivery)throw new Error("Could not locate delivery: "+deliveryAddress);
- let route=null;try{route=await routeThrough([pickup,delivery])}catch(e){}
+ const route=await routeThrough([pickup,delivery]);
  const routeMiles=route&&Number.isFinite(route.distance)?route.distance/1609.344:null;
  const routeHours=route&&Number.isFinite(route.duration)?route.duration/3600:null;
  const planningMiles=routeMiles!=null?routeMiles:null;
- const estimatedDriveHours=planningMiles!=null?planningMiles/avgSpeed:routeHours;
+ const estimatedDriveHours=routeHours;
  const plannedDays=estimatedDriveHours!=null?Math.max(1,Math.ceil(estimatedDriveHours/maxHours)):1;
  const deliveryTime=val("deliveryTime");
  const pickupStop={name:"Pickup",address:pickupAddress,lat:pickup.lat,lng:pickup.lng};
@@ -281,7 +280,7 @@ async function buildGenericPlan(){
  status.innerHTML='<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS.</b></span>';
  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(val("driver"))}</div></div><div class="version">v0.6.0 DISPATCHER INPUT</div></div>
  <div class="summary"><div class="metric">Pickup<b>${esc(pickupAddress)}</b></div><div class="metric">Delivery<b>${esc(deliveryAddress)}</b></div><div class="metric">Planning distance<b>${distanceText}</b></div><div class="metric">Planned drive<b>${hoursText}</b></div></div>
- <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Public map routing here is a distance-planning aid, not truck-route validation. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
+ <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Trimble PC*Miler truck routing uses default vehicle dimensions. Address lookup still uses the public geocoder. Typed highway notes are not enforced; confirm the actual truck profile and dispatch corridor before dispatch. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
  ${wholeTripNavBlock()}
  ${days}
  <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
