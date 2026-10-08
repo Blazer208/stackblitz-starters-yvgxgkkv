@@ -208,16 +208,11 @@ async function routeThrough(points){
 }
 
 function navBlock(s){
- const gu=googleUrl(s.lat,s.lng,s.address),au=appleUrl(s.lat,s.lng,s.address);
- const gpx=s.lat!=null&&s.lng!=null
-   ? `<button class="btn secondary" type="button" onclick='downloadPointGPX(${JSON.stringify(s.name)},${JSON.stringify(s.address)},${s.lat},${s.lng})'>Garmin GPX</button>`
-   : `<span class="badge warn">Garmin exact point pending GPS coordinate</span>`;
- return `<div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Apple Maps</a>${gpx}</div>
- <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Google Maps QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Maps QR</b></div></div>`;
+ return '<div class="notice small no-print">Review and confirm the location in “Verify Stops Before Navigation” above to unlock route links and QR codes.</div>';
 }
 function xml(s){return String(s).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]))}
 function save(text,name,type){const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),500)}
-function downloadPointGPX(name,address,lat,lng){const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
+function downloadPointGPX(name,address,lat,lng){if(!navIsVerified()){alert('Verify every stop first.');return;}const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
 function downloadRouteGPX(){\n if(!navIsVerified()){alert("Verify every stop, then generate QR codes first.");return;}
  if(!lastPlanStops.length){alert("Generate the trip plan first.");return}
  if(lastPlanStops.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng))){alert("Garmin export needs coordinates for every stop. Resolve missing locations and generate the plan again.");return}
