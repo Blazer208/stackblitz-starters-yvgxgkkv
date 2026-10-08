@@ -148,7 +148,7 @@ function changeVerifiedStop(i){
  if(!name.trim()||!address.trim()){alert('Facility name and street address required.');return;}
  s.name=name.trim();s.address=address.trim();s.truckEntrance=entrance.trim();
  s.lat=null;s.lng=null;
- const m=s.truckEntrance.match(/^(-?\\d+(?:\\.\\d+)?)\\s*,\\s*(-?\\d+(?:\\.\\d+)?)$/);
+ const m=s.truckEntrance.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
  if(m&&Math.abs(+m[1])<=90&&Math.abs(+m[2])<=180){s.lat=+m[1];s.lng=+m[2];}
  confirmedStops.delete(i);verifiedTripSignature='';refreshStopVerification();
 }
@@ -213,7 +213,8 @@ function navBlock(s){
 function xml(s){return String(s).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]))}
 function save(text,name,type){const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),500)}
 function downloadPointGPX(name,address,lat,lng){if(!navIsVerified()){alert('Verify every stop first.');return;}const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
-function downloadRouteGPX(){\n if(!navIsVerified()){alert("Verify every stop, then generate QR codes first.");return;}
+function downloadRouteGPX(){
+ if(!navIsVerified()){alert("Verify every stop, then generate QR codes first.");return;}
  if(!lastPlanStops.length){alert("Generate the trip plan first.");return}
  if(lastPlanStops.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng))){alert("Garmin export needs coordinates for every stop. Resolve missing locations and generate the plan again.");return}
  const pts=lastPlanStops.filter(p=>p.lat!=null&&p.lng!=null).map(p=>`<wpt lat="${p.lat}" lon="${p.lng}"><name>${xml(p.name)}</name><desc>${xml(p.address||"")}</desc></wpt>`).join("");
