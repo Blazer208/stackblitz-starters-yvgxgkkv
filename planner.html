@@ -45,7 +45,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <div><label>Loaded weight</label><input id="weight" value="41,127 lb"></div>
   </div>
   <div class="grid3" style="margin-top:12px">
-   <div><label>Reefer</label><input id="reefer" value=""></div>
+   <div><label>Overall height (inches; 162 = 13 ft 6 in)</label><input id="heightInches" type="number" value="162" min="60" max="180"></div><div><label>Loaded gross weight (lb)</label><input id="grossWeight" type="number" value="80000" min="1000" max="80000"></div><div><label>Trailer length (feet)</label><input id="trailerFeet" type="number" value="53" min="1" max="53"></div><div><label>Reefer</label><input id="reefer" value=""></div>
    <div><label>Max drive hours/day</label><input id="maxHours" type="number" step=".25" value="11"></div>
    <div><label>Cycle hours available</label><input id="cycle" type="number" step=".25" value="52.5"></div>
    <div><label>Average speed (mph)</label><input id="avgSpeed" type="number" step="1" value="55"></div>
@@ -147,7 +147,7 @@ async function geocode(q){
 }
 async function routeThrough(points){
  if(points.some(p=>p.lat==null||p.lng==null))throw new Error('Resolve every stop coordinate before truck routing.');
- const r=await fetch('/api/truck-route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:points.map(p=>({lat:p.lat,lng:p.lng}))})});
+ const r=await fetch('/api/truck-route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:points.map(p=>({lat:p.lat,lng:p.lng})),profile:{heightInches:Number(val("heightInches")),grossWeight:Number(val("grossWeight")),trailerFeet:Number(val("trailerFeet"))}})});
  const j=await r.json();if(!r.ok)throw new Error(j.error||'Truck routing failed');return j;
 }
 
@@ -203,7 +203,7 @@ async function build127532(){
  <div class="day"><div class="dayhead"><div><h3>DAY 2 — SATURDAY, OCT 10</h3><div class="muted small">Altoona → North Platte → Sidney</div></div><span class="badge">Run day</span></div>${sat}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 3 — SUNDAY, OCT 11</h3><div class="muted small">Sidney → Rock Springs → Springville</div></div><span class="badge">Stage near receiver</span></div>${sun}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 4 — MONDAY, OCT 12</h3><div class="muted small">Short local move to CANDYCO</div></div><span class="badge">8:00 AM MT delivery</span></div>${mon}</div>
- <div class="notice small"><b>Safety:</b> Actual ELD/PeopleNet hours, company/dispatch routing, Garmin dēzl truck profile, posted restrictions, weather and parking conditions control. Truck-route totals are available only when all stop coordinates resolve. Default truck dimensions and the dispatch corridor still need confirmation.</div>`;
+ <div class="notice small"><b>Safety:</b> Actual ELD/PeopleNet hours, company/dispatch routing, Garmin dēzl truck profile, posted restrictions, weather and parking conditions control. Truck-route totals are available only when all stop coordinates resolve. Entered height, gross weight and trailer length apply; width and the dispatch corridor still need confirmation.</div>`;
  document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
@@ -280,7 +280,7 @@ async function buildGenericPlan(){
  status.innerHTML='<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS.</b></span>';
  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(val("driver"))}</div></div><div class="version">v0.6.0 DISPATCHER INPUT</div></div>
  <div class="summary"><div class="metric">Pickup<b>${esc(pickupAddress)}</b></div><div class="metric">Delivery<b>${esc(deliveryAddress)}</b></div><div class="metric">Planning distance<b>${distanceText}</b></div><div class="metric">Planned drive<b>${hoursText}</b></div></div>
- <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Trimble PC*Miler truck routing uses default vehicle dimensions. Address lookup still uses the public geocoder. Typed highway notes are not enforced; confirm the actual truck profile and dispatch corridor before dispatch. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
+ <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Trimble PC*Miler uses the entered height, gross weight and trailer length. Width still uses the Trimble default. Address lookup still uses the public geocoder. Typed highway notes are not enforced; confirm the actual truck profile and dispatch corridor before dispatch. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
  ${wholeTripNavBlock()}
  ${days}
  <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;

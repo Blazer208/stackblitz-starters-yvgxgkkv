@@ -34,10 +34,12 @@ async function truckRoute(req, res) {
       data += chunk;
       if (data.length > 32768) return json(res,413,{error:'Request too large'});
     }
-    const {points}=JSON.parse(data);
+    const {points,profile={}}=JSON.parse(data);
+    const height=Number(profile.heightInches??162), weight=Number(profile.grossWeight??80000), length=Number(profile.trailerFeet??53);
+    if(!Number.isFinite(height)||height<60||height>180||!Number.isFinite(weight)||weight<1000||weight>80000||!Number.isFinite(length)||length<1||length>53)return json(res,400,{error:'Invalid standard truck dimensions or gross weight'});
     if (!Array.isArray(points) || points.length<2 || points.length>25 || points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)||Math.abs(p.lat)>90||Math.abs(p.lng)>180))
       return json(res,400,{error:'Supply 2–25 valid coordinate stops'});
-    const cacheKey=JSON.stringify(points.map(p=>[p.lat,p.lng]));
+    const cacheKey=JSON.stringify([points.map(p=>[p.lat,p.lng]),height,weight,length]);
     if(routeCache.has(cacheKey))return json(res,200,routeCache.get(cacheKey));
     if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}
     if(++quotaCalls>20)return json(res,429,{error:'Trial routing request limit reached; retry later'});
@@ -45,7 +47,7 @@ async function truckRoute(req, res) {
       method:'POST', headers:{Authorization:key,'Content-Type':'application/json'},
       signal:AbortSignal.timeout(25000),
       body:JSON.stringify({ReportRoutes:[{Stops:points.map(p=>({Coords:{Lat:String(p.lat),Lon:String(p.lng)},Region:4})),
-        Options:{VehicleType:0,RoutingType:0,HighwayOnly:false,DistanceUnits:0},
+        Options:{VehicleType:0,RoutingType:0,HighwayOnly:false,DistanceUnits:0,TruckCfg:{Units:0,Height:String(height),Weight:String(weight),Length:String(length*12)}},
         ReportTypes:[{__type:'MileageReportType:http://pcmiler.alk.com/APIs/v1.0',TimeInSeconds:true}]}]})
     });
     if(!response.ok) return json(res,502,{error:'Trimble routing request failed',upstreamStatus:response.status});
@@ -58,7 +60,7 @@ async function truckRoute(req, res) {
     const distance=Number(end.TMiles)*1609.344;
     if(!Number.isFinite(distance)||!Number.isFinite(duration)) return json(res,502,{error:'Invalid Trimble route totals'});
     const result={distance,duration,provider:'Trimble PC*Miler',geometry:null,
-      profile:'Default truck dimensions; confirm actual vehicle profile and dispatch corridor',legs:lines};
+      profile:{heightInches:height,grossWeight:weight,trailerFeet:length,width:'Trimble default; confirm before dispatch'},legs:lines};
     if(routeCache.size>=100)routeCache.delete(routeCache.keys().next().value);
     routeCache.set(cacheKey,result);
     return json(res,200,result);
