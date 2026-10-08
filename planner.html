@@ -164,10 +164,12 @@ function save(text,name,type){const b=new Blob([text],{type}),u=URL.createObject
 function downloadPointGPX(name,address,lat,lng){const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
 function downloadRouteGPX(){
  if(!lastPlanStops.length){alert("Generate the trip plan first.");return}
+ if(lastPlanStops.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng))){alert("Garmin export needs coordinates for every stop. Resolve missing locations and generate the plan again.");return}
  const pts=lastPlanStops.filter(p=>p.lat!=null&&p.lng!=null).map(p=>`<wpt lat="${p.lat}" lon="${p.lng}"><name>${xml(p.name)}</name><desc>${xml(p.address||"")}</desc></wpt>`).join("");
+ const rte=`<rte><name>Route Stride Trip ${xml(val("trip")||"UNNUMBERED")}</name>${lastPlanStops.map((p,i)=>`<rtept lat="${p.lat}" lon="${p.lng}"><name>${xml(String(i+1).padStart(2,"0")+" - "+p.name)}</name><desc>${xml(p.address||"")}</desc></rtept>`).join("")}</rte>`;
  let trk="";
  if(lastRoute&&lastRoute.geometry&&lastRoute.geometry.coordinates){trk=`<trk><name>Route Stride Trip ${xml(val("trip")||"UNNUMBERED")}</name><trkseg>${lastRoute.geometry.coordinates.map(p=>`<trkpt lat="${p[1]}" lon="${p[0]}"></trkpt>`).join("")}</trkseg></trk>`}
- const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1">${pts}${trk}</gpx>`;
+ const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1">${pts}${rte}${trk}</gpx>`;
  save(g,"Route_Stride_Trip_"+(val("trip")||"UNNUMBERED")+".gpx","application/gpx+xml")
 }
 function stopCard(s,title,note){
