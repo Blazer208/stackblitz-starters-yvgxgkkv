@@ -31,7 +31,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
  <div class="card form-card">
   <h2>Build Trip</h2>
   <div class="grid">
-   <div><label>Start / Yard</label><input id="yard" value="Oak Creek, WI"></div>
+   <div><label>Start / Yard</label><input id="yard" value="9950 S Reinhart Dr, Oak Creek, WI 53154"></div>
    <div><label>Pickup address</label><input id="pickup" value="4041 N Richards St, Milwaukee, WI 53212"></div>
    <div><label>Delivery address</label><input id="delivery" value="2224 W 500 N, Springville, UT 84663"></div>
    <div><label>Trip number</label><input id="trip" value="127532"></div>
@@ -181,13 +181,16 @@ async function build127532(){
  const status=document.getElementById("status"),gen=document.getElementById("generated");
  status.innerHTML='<span class="spinner"></span>Loading Trip 127532 and building navigation handoffs…';
  const stops=trip127532Stops.map(s=>({...s}));
- const [pickupGeo,deliveryGeo]=await Promise.all([geocode(val("pickup")).catch(()=>null),geocode(val("delivery")).catch(()=>null)]);
+ if(!val("yard").trim())throw new Error("Enter the starting yard address.");
+ const [yardGeo,pickupGeo,deliveryGeo]=await Promise.all([geocode(val("yard")).catch(()=>null),geocode(val("pickup")).catch(()=>null),geocode(val("delivery")).catch(()=>null)]);
+ if(!yardGeo)throw new Error("Could not locate starting yard: "+val("yard"));
+ const yardStop={name:"Starting yard",address:val("yard"),lat:yardGeo.lat,lng:yardGeo.lng};
  stops[0].address=val("pickup"); if(pickupGeo){stops[0].lat=pickupGeo.lat;stops[0].lng=pickupGeo.lng}
  stops[7].address=val("delivery"); if(deliveryGeo){stops[7].lat=deliveryGeo.lat;stops[7].lng=deliveryGeo.lng}
- lastPlanStops=stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng}));
+ lastPlanStops=[yardStop,...stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng}))];
  lastOrigin=lastPlanStops[0]; lastDest=lastPlanStops[lastPlanStops.length-1];
  try{lastRoute=await routeThrough(lastPlanStops)}catch(e){lastRoute=null;throw e}
- const fri=stopCard(stops[0],"PICKUP","Friday, Oct 9 at 1:30 PM Central • 44 pallets • 41,127 lb.")
+ const fri=stopCard(yardStop,"DEPART YARD","Drive from the yard to PHOENIX before pickup.")+stopCard(stops[0],"PICKUP","Friday, Oct 9 at 1:30 PM Central • 44 pallets • 41,127 lb.")
    +stopCard(stops[1],"30-MIN BREAK / FUEL","Pilot #1092 • Cedar Rapids, Iowa.")
    +stopCard(stops[2],"FINAL REST","Flying J #913 • Altoona, Iowa.");
  const sat=stopCard(stops[3],"30-MIN BREAK / FUEL","Flying J #687 • North Platte, Nebraska.")
@@ -199,9 +202,9 @@ async function build127532(){
  status.innerHTML='<span class="ok"><b>TRIP 127532 LOADED.</b> This preset uses the Professional Driver Trip Plan stop sequence.</span>';
  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip 127532 • ${esc(val("driver"))} • Trailer ${esc(val("trailer"))}</div></div><div class="version">v0.6.1 TEST — 127532</div></div>
  <div class="summary"><div class="metric">Pickup<b>Fri 1:30 PM CT</b></div><div class="metric">Load<b>41,127 lb / 44 pallets</b></div><div class="metric">Route check<b>${mapMiles}</b></div><div class="metric">Delivery<b>Mon 8:00 AM MT</b></div></div>
- <div class="notice small"><b>Shipper:</b> PHOENIX, 4041 N Richards St, Milwaukee, WI 53212<br><b>Consignee:</b> CANDYCO, 2224 W 500 N, Springville, UT 84663<br><b>Company corridor:</b> ${esc(val("notes"))}<br><b>Plan rule:</b> two stops per driving day — one 30-minute break/fuel stop, then final rest/staging.</div>
+ <div class="notice small"><b>Start / Yard:</b> ${esc(yardStop.address)}<br><b>Shipper:</b> PHOENIX, ${esc(stops[0].address)}<br><b>Consignee:</b> CANDYCO, 2224 W 500 N, Springville, UT 84663<br><b>Company corridor:</b> ${esc(val("notes"))}<br><b>Plan rule:</b> two stops per driving day — one 30-minute break/fuel stop, then final rest/staging.</div>
  ${wholeTripNavBlock()}
- <div class="day"><div class="dayhead"><div><h3>DAY 1 — FRIDAY, OCT 9</h3><div class="muted small">Milwaukee → Cedar Rapids → Altoona</div></div><span class="badge">Pickup 1:30 PM CT</span></div>${fri}</div>
+ <div class="day"><div class="dayhead"><div><h3>DAY 1 — FRIDAY, OCT 9</h3><div class="muted small">Yard → Milwaukee pickup → Cedar Rapids → Altoona</div></div><span class="badge">Pickup 1:30 PM CT</span></div>${fri}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 2 — SATURDAY, OCT 10</h3><div class="muted small">Altoona → North Platte → Sidney</div></div><span class="badge">Run day</span></div>${sat}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 3 — SUNDAY, OCT 11</h3><div class="muted small">Sidney → Rock Springs → Springville</div></div><span class="badge">Stage near receiver</span></div>${sun}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 4 — MONDAY, OCT 12</h3><div class="muted small">Short local move to CANDYCO</div></div><span class="badge">8:00 AM MT delivery</span></div>${mon}</div>
