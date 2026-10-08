@@ -103,19 +103,19 @@ function appleUrl(lat,lng,label){return lat!=null?`https://maps.apple.com/?daddr
 function qrUrl(url){return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`}
 function truckerPathUrl(stops){
  if(!stops||!stops.length)return "#";
- const d=stops[stops.length-1],middle=stops.slice(0,-1).filter(p=>p.lat!=null&&p.lng!=null);
- let u=`truckerpath://navigate?lat=${encodeURIComponent(d.lat!=null?d.lat:"")}&lon=${encodeURIComponent(d.lng!=null?d.lng:"")}`;
- if(middle.length)u+=`&waypoints=${encodeURIComponent(middle.map(p=>p.lat+","+p.lng).join("|"))}`;
+ const usable=stops.filter(p=>p.lat!=null&&p.lng!=null),o=usable[0],d=usable[usable.length-1],middle=usable.slice(1,-1);
+ if(!d)return "#";
+ let u=`truckerpath://cal_route?daddr=${d.lat},${d.lng}`;
+ if(o&&o!==d)u+=`&saddr=${o.lat},${o.lng}`;
+ if(middle.length)u+=`&paddr=${middle.map(p=>p.lat+","+p.lng).join("|")}`;
  return u;
 }
 function hammerUrl(stops){
  if(!stops||!stops.length)return "#";
- const usable=stops.filter(p=>p.lat!=null&&p.lng!=null),d=usable[usable.length-1];
- if(!d)return "#";
- const middle=usable.slice(Math.max(0,usable.length-6),-1);
- let u=`https://hammerapp.com/route?destination=${encodeURIComponent(d.lat+","+d.lng)}`;
- if(middle.length)u+=`&waypoints=${encodeURIComponent(middle.map(p=>p.lat+","+p.lng).join("|"))}`;
- return u;
+ const usable=stops.filter(p=>p.lat!=null&&p.lng!=null);
+ if(!usable.length)return "#";
+ const handoff=usable.slice(-5);
+ return `https://hammerapp.com/app/route/${handoff.map(p=>encodeURIComponent(p.lat+","+p.lng)).join("/")}`;
 }
 function navValue(p){return p.lat!=null&&p.lng!=null ? p.lat+","+p.lng : p.address}
 function googleWholeTripUrl(stops){
