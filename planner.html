@@ -136,7 +136,37 @@ function appleWholeTripUrl(stops){
  const d=stops[stops.length-1];
  return `https://maps.apple.com/?daddr=${encodeURIComponent(navValue(d))}&dirflg=d`;
 }
-function wholeTripNavBlock(){
+
+let confirmedStops=new Set(),verifiedTripSignature='';
+function tripSignature(){return JSON.stringify(lastPlanStops.map(s=>[s.name,s.address,s.lat,s.lng,s.truckEntrance||'']));}
+function navIsVerified(){return lastPlanStops.length>0&&confirmedStops.size===lastPlanStops.length&&verifiedTripSignature===tripSignature();}
+function changeVerifiedStop(i){
+ const s=lastPlanStops[i];if(!s)return;
+ const name=prompt('Official facility name',s.name);if(name===null)return;
+ const address=prompt('Full verified street address',s.address);if(address===null)return;
+ const entrance=prompt('Truck entrance (street address or latitude,longitude; optional)',s.truckEntrance||'');if(entrance===null)return;
+ if(!name.trim()||!address.trim()){alert('Facility name and street address required.');return;}
+ s.name=name.trim();s.address=address.trim();s.truckEntrance=entrance.trim();
+ s.lat=null;s.lng=null;
+ const m=s.truckEntrance.match(/^(-?\\d+(?:\\.\\d+)?)\\s*,\\s*(-?\\d+(?:\\.\\d+)?)$/);
+ if(m&&Math.abs(+m[1])<=90&&Math.abs(+m[2])<=180){s.lat=+m[1];s.lng=+m[2];}
+ confirmedStops.delete(i);verifiedTripSignature='';refreshStopVerification();
+}
+function checkVerifiedStop(i,yes){if(yes)confirmedStops.add(i);else confirmedStops.delete(i);verifiedTripSignature='';refreshStopVerification();}
+function refreshStopVerification(){
+ const host=document.getElementById('verificationHost');if(!host)return;
+ const all=lastPlanStops.length>0&&confirmedStops.size===lastPlanStops.length;
+ const cards=lastPlanStops.map((s,i)=>`<div class="stop"><div class="stopTitle">${i+1}. ${esc(s.name)}</div><div class="addr">${esc(s.address)}</div><div class="meta">Truck entrance: ${esc(s.truckEntrance||'Not separately verified')} • Navigation: ${s.lat!=null?esc(s.lat+', '+s.lng):'Street address only'}</div><div class="actions no-print"><button type="button" class="btn secondary" onclick="changeVerifiedStop(${i})">Correct name / address / truck entrance</button><label style="display:flex;align-items:center;gap:7px"><input type="checkbox" style="width:auto" ${confirmedStops.has(i)?'checked':''} onchange="checkVerifiedStop(${i},this.checked)">I verified this stop and truck access</label></div></div>`).join('');
+ host.innerHTML=`<div class="day" style="border-color:var(--amber)"><h3>VERIFY STOPS BEFORE NAVIGATION</h3><div class="notice small">Check the facility's official address and actual truck entrance against dispatch/operator records. A nearby business label is not proof. Edited stops lose their old GPS pin to prevent incorrect handoffs.</div><div class="meta">${confirmedStops.size} of ${lastPlanStops.length} manually confirmed</div>${cards}<div class="actions no-print"><button class="btn good" type="button" ${all?'':'disabled'} onclick="unlockNavigation()">Generate QR codes and navigation buttons</button></div></div>`;
+ document.getElementById('verifiedNavigation').innerHTML='';
+}
+function unlockNavigation(){
+ if(confirmedStops.size!==lastPlanStops.length||!lastPlanStops.length)return;
+ verifiedTripSignature=tripSignature();document.getElementById('verifiedNavigation').innerHTML=renderNavigationLinks();
+ document.getElementById('verifiedNavigation').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function wholeTripNavBlock(){confirmedStops=new Set();verifiedTripSignature='';return '<div id="verificationHost"></div><div id="verifiedNavigation"></div>';}
+function renderNavigationLinks(){
  const gu=googleWholeTripUrl(lastPlanStops),au=appleWholeTripUrl(lastPlanStops);
  const hammerSegments=hammerRouteSegments(lastPlanStops);
  const hammerActions=hammerSegments.map((s,i)=>`<a class="btn secondary" target="_blank" rel="noopener" href="${esc(s.url)}">Open Hammer — Leg ${i+1}</a>`).join('');
@@ -188,7 +218,7 @@ function navBlock(s){
 function xml(s){return String(s).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]))}
 function save(text,name,type){const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),500)}
 function downloadPointGPX(name,address,lat,lng){const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
-function downloadRouteGPX(){
+function downloadRouteGPX(){\n if(!navIsVerified()){alert("Verify every stop, then generate QR codes first.");return;}
  if(!lastPlanStops.length){alert("Generate the trip plan first.");return}
  if(lastPlanStops.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng))){alert("Garmin export needs coordinates for every stop. Resolve missing locations and generate the plan again.");return}
  const pts=lastPlanStops.filter(p=>p.lat!=null&&p.lng!=null).map(p=>`<wpt lat="${p.lat}" lon="${p.lng}"><name>${xml(p.name)}</name><desc>${xml(p.address||"")}</desc></wpt>`).join("");
@@ -235,7 +265,7 @@ async function build127532(){
  <div class="day"><div class="dayhead"><div><h3>DAY 3 — SUNDAY, OCT 11</h3><div class="muted small">Sidney → Rock Springs → Springville</div></div><span class="badge">Stage near receiver</span></div>${sun}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 4 — MONDAY, OCT 12</h3><div class="muted small">Short local move to CANDYCO</div></div><span class="badge">8:00 AM MT delivery</span></div>${mon}</div>
  <div class="notice small"><b>Safety:</b> Actual ELD/PeopleNet hours, company/dispatch routing, Garmin dēzl truck profile, posted restrictions, weather and parking conditions control. Truck-route totals are available only when all stop coordinates resolve. Entered height, gross weight and trailer length apply; width applies; the dispatch corridor still needs confirmation.</div>`;
- document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
+ refreshStopVerification();document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
 async function build127482(){
@@ -275,7 +305,7 @@ async function build127482(){
  <div class="day"><div class="dayhead"><div><h3>DAY 4 — THURSDAY, OCT 8</h3><div class="muted small">~1–2 mi • ~5–10 min local move • Oak Creek staging → receiver</div></div><span class="badge">5:00 AM delivery</span></div>${d4}</div>
  <div class="notice small"><b>HOS:</b> Actual ELD/PeopleNet hours control. <b>Truck-safe route:</b> Follow company PC*Miler corridor, Garmin dēzl truck profile, posted restrictions, and dispatch instructions. <b>Reefer:</b> 52 F continuous. <b>Timing:</b> pickup entry on the load card shows 00:00–00:00 Monday, so Day 1 clock times shift to actual release after loading.</div>
  <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
- document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
+ refreshStopVerification();document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
 async function buildGenericPlan(){
@@ -315,7 +345,7 @@ async function buildGenericPlan(){
  ${wholeTripNavBlock()}
  ${days}
  <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
- document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
+ refreshStopVerification();document.getElementById("plan").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
 async function buildPlan(){
