@@ -102,12 +102,15 @@ function googleUrl(lat,lng,label){return lat!=null?`https://www.google.com/maps/
 function appleUrl(lat,lng,label){return lat!=null?`https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`:`https://maps.apple.com/?daddr=${encodeURIComponent(label)}&dirflg=d`}
 function qrUrl(url){return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`}
 function truckerPathUrl(stops){
- if(!stops||!stops.length)return "#";
- const usable=stops.filter(p=>p.lat!=null&&p.lng!=null),o=usable[0],d=usable[usable.length-1],middle=usable.slice(1,-1);
- if(!d)return "#";
- let u=`truckerpath://cal_route?daddr=${d.lat},${d.lng}`;
- if(o&&o!==d)u+=`&saddr=${o.lat},${o.lng}`;
- if(middle.length)u+=`&paddr=${middle.map(p=>p.lat+","+p.lng).join("|")}`;
+ if(!Array.isArray(stops)||!stops.length)return "#";
+ // Preserve every planned stop. Coordinates are preferred, but verified
+ // address-only stops must not disappear from the mobile handoff.
+ const values=stops.map(navValue).filter(Boolean);
+ if(!values.length)return "#";
+ const o=values[0],d=values[values.length-1],middle=values.slice(1,-1);
+ let u=`truckerpath://cal_route?daddr=${encodeURIComponent(d)}`;
+ if(values.length>1)u+=`&saddr=${encodeURIComponent(o)}`;
+ if(middle.length)u+=`&paddr=${encodeURIComponent(middle.join("|"))}`;
  return u;
 }
 // Hammer's published URL handoff allows a maximum of five waypoints per link.
