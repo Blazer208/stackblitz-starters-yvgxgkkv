@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dispatch Pro — Scan Dispatch Route</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0a1220;color:#f4f7fb;font:16px system-ui,Arial}.wrap{max-width:900px;margin:auto;padding:20px}.card{border:1px solid #30445d;border-radius:15px;background:#111c2e;padding:18px;margin:18px 0}label{display:block;margin:12px 0 6px}input,textarea{width:100%;border-radius:9px;padding:12px;background:#091526;color:white;border:1px solid #385170}textarea{min-height:140px}button,.button{display:inline-block;margin:7px 7px 7px 0;border:0;border-radius:9px;padding:12px;background:#3b82f6;color:white;font-weight:700;text-decoration:none;cursor:pointer}button:disabled{opacity:.5}.secondary{background:#263e59}small,.muted{color:#afc1d8}.warn{color:#fbd38d} .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:620px){.grid{grid-template-columns:1fr}}</style></head>
+<body><div class="wrap"><h1>Scan Dispatch Route</h1><p class="muted">Import a PC*MILER routing sheet, review the extracted fields, then transfer them to the existing planner. This is a test feature; no route is verified truck-safe here.</p>
+<div class="card"><h2>1. Upload a route sheet</h2><label for="upload">Photo, screenshot, or PDF</label><input type="file" id="upload" accept="image/*,.pdf,application/pdf"><button id="scan" type="button">Read Route Sheet</button><p id="status" role="status">Choose a file to begin. Clear, straight-on photos work best.</p></div>
+<div class="card"><h2>2. Review extracted details</h2><div class="grid"><div><label>Origin</label><input id="origin" placeholder="City, state or full address"></div><div><label>Destination</label><input id="destination" placeholder="City, state or full address"></div><div><label>Reported miles</label><input id="miles" placeholder="e.g. 1521.1"></div><div><label>Detected intermediate stop</label><input id="stop" placeholder="Stop / waypoint"></div></div>
+<label>Consolidated road sequence (editable)</label><textarea id="roads" placeholder="Interstates and highways in order"></textarea>
+<label>Extracted text — correct mistakes here before reprocessing</label><textarea id="raw" style="min-height:210px"></textarea><button class="secondary" id="reparse">Reprocess Edited Text</button></div>
+<div class="card"><h2>3. Transfer to planner</h2><p class="warn">Required: manually confirm every highway, stop, address, and truck restriction against an approved truck-routing system. Upload OCR does not validate low bridges, restricted roads, road closures, or HOS compliance.</p><label><input type="checkbox" id="reviewed" style="width:auto"> I reviewed and corrected the extracted route.</label><button id="transfer">Open Planner with Reviewed Route</button><a class="button secondary" href="planner.html">Open Planner Without Import</a></div></div>
+<script>
+const $=id=>document.getElementById(id);
+function clean(v){return (v||"").replace(/\s+/g," ").trim()}
+function parseRoute(){
+ const raw=$("raw").value, s=raw.replace(/\r/g,"");
+ let header=s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)\s*:\s*\d+\s*Stop/i);
+ if(!header) header=s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)(?:\n|Miles\s*:)/i);
+ if(header){$("origin").value=clean(header[1]);$("destination").value=clean(header[2]);}
+ const miles=s.match(/Miles\s*:\s*([\d,]+(?:\.\d+)?)/i);if(miles)$("miles").value=miles[1];
+ const stop=s.match(/Stop\s*1\s*:\s*(.+?)(?:\s+0:00|\n)/i);if(stop)$("stop").value=clean(stop[1]);
+ // Route rows start with a state abbreviation and direction. Only read the route column;
+ // avoid toll/interchange commentary and collapse consecutive repeated highways.
+ const roads=[];let inRows=false;
+ for(const line of s.split("\n")){
+  if(/State\/\s*Country|Interchange/i.test(line))inRows=true;
+  if(!inRows)continue;
+  const m=line.match(/^\s*[A-Z]{2}\s+(?:Keep\s+(?:right|left)|North|South|East|West|Right|Left)\s+(I[- ]?\d+(?:[- ]?(?:Business|Bus))?|US[- ]?\d+|MT[- ]?\d+|SD[- ]?\d+|WI[- ]?\d+|ID[- ]?\d+|WY[- ]?\d+|MN[- ]?\d+)/i);
+  if(m){const road=clean(m[1]).replace(/^(I|US|MT|SD|WI|ID|WY|MN)\s+/i,"$1-");if(roads[roads.length-1]!==road) roads.push(road);}
+ }
+ $("roads").value=roads.join(" → ");
+ $("status").textContent=roads.length?"Extracted "+roads.length+" highway sections. Check all fields before transfer.":"Text read, but no road sequence was confidently detected. Enter highways manually or try a clearer scan.";
+}
+$("reparse").onclick=parseRoute;
+$("scan").onclick=async()=>{
+ const file=$("upload").files[0];if(!file){$("status").textContent="Choose a photo or PDF first.";return;}
+ $("scan").disabled=true;
+ try{
+  let text="";
+  if(file.type==="application/pdf"||/\.pdf$/i.test(file.name)){
+   $("status").textContent="Reading PDF pages…";
+   const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs");
+   pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.mjs";
+   const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+   for(let p=1;p<=Math.min(pdf.numPages,12);p++){const page=await pdf.getPage(p), items=await page.getTextContent();text+=items.items.map(x=>x.str).join(" ")+"\n";}
+   if(text.trim().length<60)throw Error("This PDF appears scanned. Save its pages as images and upload a clear photo.");
+  }else{
+   $("status").textContent="Reading image text on your device. This may take a moment…";
+   if(!window.Tesseract){
+    const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    await new Promise((res,rej)=>{script.onload=res;script.onerror=()=>rej(Error("Image reader could not load."));document.head.appendChild(script);});
+   }
+   const result=await Tesseract.recognize(file,"eng");text=result.data.text||"";
+  }
+  $("raw").value=text;parseRoute();
+ }catch(e){$("status").textContent="Could not read this file: "+e.message+" You can paste text into the review box.";}
+ finally{$("scan").disabled=false;}
+};
+$("transfer").onclick=()=>{
+ if(!$("reviewed").checked){alert("Review the route and tick the confirmation first.");return;}
+ if(!$("origin").value.trim()||!$("destination").value.trim()){alert("Origin and destination are required.");return;}
+ const data={origin:$("origin").value.trim(),destination:$("destination").value.trim(),miles:$("miles").value.trim(),stop:$("stop").value.trim(),roads:$("roads").value.trim(),reviewedAt:new Date().toISOString()};
+ sessionStorage.setItem("dispatchProReviewedImport",JSON.stringify(data));
+ // Existing planner receives input through URL params in a later integration.
+ // Also copy the route text so it can be pasted into the route field immediately.
+ const payload=[data.roads,data.stop?"Waypoint: "+data.stop:""].filter(Boolean).join(" | ");
+ navigator.clipboard?.writeText(payload).catch(()=>{});
+ alert("Reviewed route saved in this browser tab. The next step is connecting the planner's fields. For now copy the highway sequence from this screen into Company route / highways.");
+ location.href="planner.html";
+};
+</script></body></html>
