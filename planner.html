@@ -29,7 +29,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
  </div>
 
  <div class="card form-card">
-  <h2>Build Trip</h2>
+  <h2>Build Trip</h2><a class='btn secondary' href='route-import.html'>Upload / Scan Dispatch Route</a>
   <div class="grid">
    <div><label>Start / Yard</label><input id="yard" value="9950 S Reinhart Dr, Oak Creek, WI 53154"></div>
    <div><label>Pickup address</label><input id="pickup" value="4041 N Richards St, Milwaukee, WI 53212"></div>
@@ -354,5 +354,19 @@ async function buildPlan(){
  }catch(e){document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>'}
  finally{btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
+
+(function(){
+ let d=null;
+ try{d=JSON.parse(sessionStorage.getItem('dispatchProReviewedImport')||'null');}catch(e){}
+ if(!d||!d.reviewedAt||!d.origin||!d.destination)return;
+ sessionStorage.removeItem('dispatchProReviewedImport');
+ const set=(id,value)=>{const x=document.getElementById(id);if(x)x.value=value;};
+ set('yard',d.origin);set('pickup',d.origin);set('delivery',d.destination);
+ set('trip','IMPORT-'+Date.now().toString().slice(-6));
+ set('notes',[d.roads,d.stop?'Required dispatch waypoint: '+d.stop:'',d.miles?'Reference PC*MILER miles: '+d.miles:''].filter(Boolean).join(' | '));
+ const x=document.createElement('div');x.className='card form-card';
+ x.innerHTML='<b>Imported route loaded for review.</b> Verify all addresses, required waypoints, highways and truck restrictions before generating a plan. Route notes do not force the router to use those highways.';
+ document.querySelector('.form-card').before(x);
+})();
 </script>
 </body></html>
