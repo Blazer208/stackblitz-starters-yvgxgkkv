@@ -111,6 +111,7 @@ function parseDispatchStops(text){
  const fields=line.split("|").map(x=>x.trim());
  const [day,kind,network,name,address]=fields;
  if(fields.length!==5||!/^\d+$/.test(day)||+day<1||!["break","rest"].includes(kind)||!networkKey(network)||!name||!address)throw new Error("Check stop entry line "+(i+1)+": day | break or rest | network | name | address.");
+  if(networkKey(name)!==networkKey(network))throw new Error("Stop entry line "+(i+1)+": facility name does not match its declared network. Verify the official truck-stop brand and address.");
  return {day:+day,kind,network:networkKey(network),name,address};
  });
 }
@@ -361,7 +362,7 @@ async function buildGenericPlan(){
    days+=`<div class="day"><div class="dayhead"><div><h3>DAY ${i}${final?" — DELIVERY DAY":""}</h3><div class="muted small">${target!=null?"Planning target ~"+target+" mi • ":""}up to ${maxHours} drive hr</div></div><span class="badge">${final?"Delivery leg":"Planned drive day"}</span></div>
    <div class="notice small"><b>Stop strategy:</b> ${esc(strategy)}<br><b>Fuel network:</b> ${esc(network)}<br>${final?"Finish at "+esc(deliveryAddress):"Select/verify the break-fuel and final-rest locations on the approved truck corridor before dispatch."}</div>${entered.filter(s=>s.day===i).map(s=>stopCard(s,s.kind==="break"?"30-MIN BREAK / FUEL":"FINAL REST","Dispatcher-selected "+esc(networkNames[s.network])+" location; verify truck access and leg timing.")).join("")}</div>`;
  }
- status.innerHTML='<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS.</b></span>';
+ status.innerHTML=entered.length?'<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS — VERIFY ALL STOPS AND HOS.</b></span>':'<span class="error"><b>PRELIMINARY ONLY — no approved truck stops entered. Do not dispatch or navigate as a verified multi-stop trip.</b></span>';
  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(val("driver"))}</div></div><div class="version">v0.6.0 DISPATCHER INPUT</div></div>
  <div class="summary"><div class="metric">Pickup<b>${esc(pickupAddress)}</b></div><div class="metric">Delivery<b>${esc(deliveryAddress)}</b></div><div class="metric">Planning distance<b>${distanceText}</b></div><div class="metric">Planned drive<b>${hoursText}</b></div></div>
  <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Trimble PC*Miler uses the entered height, gross weight and trailer length. The entered width also applies. Address lookup still uses the public geocoder. Typed highway notes are not enforced; confirm the actual truck profile and dispatch corridor before dispatch. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
