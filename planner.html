@@ -54,7 +54,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   </div>
   <div style="margin-top:12px"><label>Company route / highways</label><textarea id="notes">I-94 → US-151 → I-80 → I-15 → local to Springville</textarea></div>
   <div class="grid" style="margin-top:12px">
-   <fieldset id="networkChoices"><legend>Approved stop networks — select one or more</legend><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" onchange="invalidateNetworkPlan()" value="pilot" checked>Pilot / Flying J</label><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" value="loves" >Love’s</label><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" value="petro" >Petro</label><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" value="ta" >TA</label><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" value="little" >Little America</label><div class="small muted">Selections apply to fuel, breaks and overnight stops.</div></fieldset>
+   <fieldset id="networkChoices"><legend>Approved stop networks — select one or more</legend><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" onchange="invalidateNetworkPlan()" value="pilot" checked>Pilot / Flying J</label><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" onchange="invalidateNetworkPlan()" value="loves" >Love’s</label><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" onchange="invalidateNetworkPlan()" value="petro" >Petro</label><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" onchange="invalidateNetworkPlan()" value="ta" >TA</label><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="stopNetwork" onchange="invalidateNetworkPlan()" value="little" >Little America</label><div class="small muted">Selections apply to fuel, breaks and overnight stops.</div></fieldset>
    <div><label>Daily strategy</label><select id="strategy"><option>Two stops per day — break/fuel + final rest</option><option>Hard first day, balanced later days</option><option>Balanced days</option></select></div>
   </div>
   <div style="margin-top:12px"><label for="dispatchStops">Verified break / fuel / overnight stops (one per line)</label><textarea id="dispatchStops" placeholder="Day | break or rest | network | facility name | full street address"></textarea><div class="small muted">Example format: 1 | break | Pilot / Flying J | Official facility name | Verified street address. Use selected networks only. Automatic truck-stop discovery is not available in this version.</div></div>
@@ -377,8 +377,17 @@ async function buildPlan(){
  try{
    if(!selectedNetworks().length)throw new Error("Select at least one approved stop network.");
    if(val("dispatchStops")){await buildGenericPlan();}
-   else if(val("trip")==="127532"){await build127532();}
-   else if(val("trip")==="127482"){await build127482();}
+   else if(val("trip")==="127532"||val("trip")==="127482"){
+     const preset=val("trip")==="127532"?trip127532Stops:trip127482Stops;
+     const disallowed=preset.filter(s=>(s.kind==="break"||s.kind==="rest")&&!selectedNetworks().includes(s.network||networkKey(s.name)));
+     if(disallowed.length){
+       await buildGenericPlan();
+       const warning='<div class="notice small"><b>STOP SELECTION REQUIRED:</b> This trip preset contains stops outside your approved networks: '+esc(disallowed.map(s=>s.name).join(", "))+'. The route shown is a preliminary pickup-to-delivery estimate only. No approved replacement truck stops have been found or verified. Enter verified break/fuel and overnight stops from your selected networks, then generate again. Do not dispatch, export or navigate this incomplete plan as a verified multi-stop route.</div>';
+       document.getElementById("generated").insertAdjacentHTML("afterbegin",warning);
+       document.getElementById("status").innerHTML='<span class="error"><b>Incomplete trip plan — approved stops required.</b> Preset stops were not silently substituted.</span>';
+     }else if(val("trip")==="127532"){await build127532();}
+     else{await build127482();}
+   }
    else{await buildGenericPlan();}
  }catch(e){document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>'}
  finally{btn.disabled=false;btn.textContent="Generate Trip Plan"}
