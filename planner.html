@@ -38,7 +38,8 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <div><label>Delivery address</label><input id="delivery" value="2224 W 500 N, Springville, UT 84663"></div>
    <div><label>Trip number</label><input id="trip" value="127532"></div>
    <div><label>Driver</label><input id="driver" value="Byron Keith Price"></div>
-   <div><label>Delivery appointment</label><input id="deliveryTime" type="datetime-local" value="2026-10-12T08:00"></div>
+   <div><label for="departureTime">Departure date and time</label><input id="departureTime" type="datetime-local" required></div>
+    <div><label>Delivery appointment</label><input id="deliveryTime" type="datetime-local" value="2026-10-12T08:00"></div>
   </div>
   <div class="grid4" style="margin-top:12px">
    <div><label>Truck</label><input id="truck" value="237"></div>
@@ -336,6 +337,8 @@ async function buildGenericPlan(){
  const maxHours=Math.max(1,parseFloat(val("maxHours"))||9),avgSpeed=Math.max(1,parseFloat(val("avgSpeed"))||55);
  const cycle=Math.max(0,parseFloat(val("cycle"))||0),strategy=val("strategy"),network=networkLabel();
  if(!pickupAddress||!deliveryAddress)throw new Error("Pickup and delivery addresses are required.");
+  if(!val("departureTime"))throw new Error("Enter the departure date and time before generating a trip plan.");
+  if(val("deliveryTime")&&new Date(val("deliveryTime"))<=new Date(val("departureTime")))throw new Error("Delivery appointment must be later than departure.");
  status.innerHTML='<span class="spinner"></span>Building plan from dispatcher inputs…';
  const [pickup,delivery]=await Promise.all([geocode(pickupAddress),geocode(deliveryAddress)]);
  if(!pickup)throw new Error("Could not locate pickup: "+pickupAddress);
@@ -365,7 +368,7 @@ async function buildGenericPlan(){
  status.innerHTML=entered.length?'<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS — VERIFY ALL STOPS AND HOS.</b></span>':'<span class="error"><b>PRELIMINARY ONLY — no approved truck stops entered. Do not dispatch or navigate as a verified multi-stop trip.</b></span>';
  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(val("driver"))}</div></div><div class="version">v0.6.0 DISPATCHER INPUT</div></div>
  <div class="summary"><div class="metric">Pickup<b>${esc(pickupAddress)}</b></div><div class="metric">Delivery<b>${esc(deliveryAddress)}</b></div><div class="metric">Planning distance<b>${distanceText}</b></div><div class="metric">Planned drive<b>${hoursText}</b></div></div>
- <div class="notice small"><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Trimble PC*Miler uses the entered height, gross weight and trailer length. The entered width also applies. Address lookup still uses the public geocoder. Typed highway notes are not enforced; confirm the actual truck profile and dispatch corridor before dispatch. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
+ <div class="notice small"><b>Departure:</b> ${esc(val("departureTime"))}<br><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Trimble PC*Miler uses the entered height, gross weight and trailer length. The entered width also applies. Address lookup still uses the public geocoder. Typed highway notes are not enforced; confirm the actual truck profile and dispatch corridor before dispatch. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
  ${wholeTripNavBlock()}
  ${days}
  <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
@@ -377,6 +380,8 @@ async function buildPlan(){
  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Building Trip Plan…';
  try{
    if(!selectedNetworks().length)throw new Error("Select at least one approved stop network.");
+   if(!val("departureTime"))throw new Error("Enter the departure date and time before generating a trip plan.");
+   if(val("deliveryTime")&&new Date(val("deliveryTime"))<=new Date(val("departureTime")))throw new Error("Delivery appointment must be later than departure.");
    if(val("dispatchStops")){await buildGenericPlan();}
    else if(val("trip")==="127532"||val("trip")==="127482"){
      const preset=val("trip")==="127532"?trip127532Stops:trip127482Stops;
