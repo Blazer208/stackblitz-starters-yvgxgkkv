@@ -352,6 +352,12 @@ async function buildGenericPlan(){
  const estimatedDriveHours=routeHours;
  const plannedDays=Math.max(entered.length?Math.max(...entered.map(s=>s.day)):1,estimatedDriveHours!=null?Math.ceil(estimatedDriveHours/maxHours):1);
  const deliveryTime=val("deliveryTime");
+ const departureDate=new Date(val("departureTime"));
+ const deliveryDate=deliveryTime?new Date(deliveryTime):null;
+ const dateLabel=d=>d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
+ const departureDay=new Date(departureDate.getFullYear(),departureDate.getMonth(),departureDate.getDate());
+ const deliveryDay=deliveryDate?new Date(deliveryDate.getFullYear(),deliveryDate.getMonth(),deliveryDate.getDate()):null;
+ const calendarDays=deliveryDay?Math.round((Date.UTC(deliveryDay.getFullYear(),deliveryDay.getMonth(),deliveryDay.getDate())-Date.UTC(departureDay.getFullYear(),departureDay.getMonth(),departureDay.getDate()))/86400000)+1:null;
  const pickupStop={name:"Pickup",address:pickupAddress,lat:pickup.lat,lng:pickup.lng};
  const deliveryStop={name:"Delivery",address:deliveryAddress,lat:delivery.lat,lng:delivery.lng};
  lastPlanStops=[pickupStop,...entered,deliveryStop];lastOrigin=pickupStop;lastDest=deliveryStop;lastRoute=route;
@@ -360,15 +366,25 @@ async function buildGenericPlan(){
  const perDay=planningMiles!=null?Math.ceil(planningMiles/plannedDays):null;
  let days="";
  for(let i=1;i<=plannedDays;i++){
+   const dayDate=new Date(departureDay);dayDate.setDate(departureDay.getDate()+i-1);
    const final=i===plannedDays;
    const target=perDay!=null?Math.min(perDay,Math.max(0,Math.round(planningMiles-perDay*(i-1)))):null;
-   days+=`<div class="day"><div class="dayhead"><div><h3>DAY ${i}${final?" — DELIVERY DAY":""}</h3><div class="muted small">${target!=null?"Planning target ~"+target+" mi • ":""}up to ${maxHours} drive hr</div></div><span class="badge">${final?"Delivery leg":"Planned drive day"}</span></div>
+   days+=`<div class="day"><div class="dayhead"><div><h3>DRIVING DAY ${i} — ${dateLabel(dayDate)}${final?" — FINAL PLANNED DRIVE":""}</h3><div class="muted small">${target!=null?"Planning target ~"+target+" mi • ":""}up to ${maxHours} drive hr</div></div><span class="badge">${final?"Delivery leg":"Planned drive day"}</span></div>
    <div class="notice small"><b>Stop strategy:</b> ${esc(strategy)}<br><b>Fuel network:</b> ${esc(network)}<br>${final?"Finish at "+esc(deliveryAddress):"Select/verify the break-fuel and final-rest locations on the approved truck corridor before dispatch."}</div>${entered.filter(s=>s.day===i).map(s=>stopCard(s,s.kind==="break"?"30-MIN BREAK / FUEL":"FINAL REST","Dispatcher-selected "+esc(networkNames[s.network])+" location; verify truck access and leg timing.")).join("")}</div>`;
+ }
+ if(deliveryDay){
+   const finalDriveDay=new Date(departureDay);finalDriveDay.setDate(departureDay.getDate()+plannedDays-1);
+   if(finalDriveDay>deliveryDay){
+     days+=`<div class="notice small"><b>APPOINTMENT CONFLICT:</b> Estimated driving days extend past the delivery date. Adjust departure, routing, or schedule; do not dispatch this plan.</div>`;
+   }else{
+     const remaining=calendarDays-plannedDays;
+     if(remaining>0)days+=`<div class="day"><div class="dayhead"><h3>STAGING / REST / WAITING — ${remaining} calendar day(s)</h3></div><div class="notice small">Estimated driving ends ${dateLabel(finalDriveDay)}. Delivery appointment: ${esc(deliveryTime)}. Remaining dates are unassigned waiting/rest/staging, not extra driving days. Confirm actual arrival, safe parking, HOS, and check-in with dispatch.</div></div>`;
+   }
  }
  status.innerHTML=entered.length?'<span class="ok"><b>TRIP '+esc(trip)+' BUILT FROM CURRENT FORM INPUTS — VERIFY ALL STOPS AND HOS.</b></span>':'<span class="error"><b>PRELIMINARY ONLY — no approved truck stops entered. Do not dispatch or navigate as a verified multi-stop trip.</b></span>';
  gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip ${esc(trip)} • ${esc(val("driver"))}</div></div><div class="version">v0.6.0 DISPATCHER INPUT</div></div>
  <div class="summary"><div class="metric">Pickup<b>${esc(pickupAddress)}</b></div><div class="metric">Delivery<b>${esc(deliveryAddress)}</b></div><div class="metric">Planning distance<b>${distanceText}</b></div><div class="metric">Planned drive<b>${hoursText}</b></div></div>
- <div class="notice small"><b>Departure:</b> ${esc(val("departureTime"))}<br><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Trimble PC*Miler uses the entered height, gross weight and trailer length. The entered width also applies. Address lookup still uses the public geocoder. Typed highway notes are not enforced; confirm the actual truck profile and dispatch corridor before dispatch. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
+ <div class="notice small"><b>Calendar window:</b> ${calendarDays!=null?calendarDays+" calendar dates including departure and delivery":"No delivery date"} • <b>Estimated driving days:</b> ${plannedDays}<br><b>Departure:</b> ${esc(val("departureTime"))}<br><b>Max drive/day:</b> ${maxHours} hr • <b>Average speed:</b> ${avgSpeed} mph • <b>Cycle available:</b> ${cycle} hr${deliveryTime?" • <b>Delivery appointment:</b> "+esc(deliveryTime):""}<br><b>Company route/highways:</b> ${esc(val("notes"))}<br><b>Important:</b> Trimble PC*Miler uses the entered height, gross weight and trailer length. The entered width also applies. Address lookup still uses the public geocoder. Typed highway notes are not enforced; confirm the actual truck profile and dispatch corridor before dispatch. Dispatcher/company truck routing, Garmin dēzl truck profile, posted restrictions, and ELD hours control.</div>
  ${wholeTripNavBlock()}
  ${days}
  <div class="actions no-print"><button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button><button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button></div>`;
