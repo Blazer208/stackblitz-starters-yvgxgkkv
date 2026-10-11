@@ -101,7 +101,7 @@ $("scanLoad").onclick=async()=>{
  finally{$("scanLoad").disabled=false;$("scan").disabled=false;}
 };
 $("reparseLoad").onclick=parseLoadCard;
-document.querySelectorAll("input,textarea").forEach(el=>el.addEventListener("input",()=>{$("reviewed").checked=false;}));
+document.querySelectorAll('input:not(#reviewed),textarea').forEach(el=>el.addEventListener("input",()=>{$("reviewed").checked=false;}));
 
 $("reparse").onclick=parseRoute;
 $("scan").onclick=async()=>{
