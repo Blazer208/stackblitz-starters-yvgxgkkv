@@ -61,6 +61,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button>
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
+  <div style="margin-top:12px"><label for="manualStops">Dispatcher-selected truck stops (optional; one per line, in travel order)</label><textarea id="manualStops" placeholder="Pilot Travel Center #123 | Full street address, city, state ZIP&#10;Love's Travel Stop #456 | Full street address, city, state ZIP"></textarea><div class="small muted">Enter break/fuel, then overnight stops for each driving day. Pickup and delivery are already included. These stops will be checked using truck-route miles and driving hours. Automatic stop search requires licensed Trimble stop data.</div></div>
   <div class="notice small"><b>Stop spacing:</b> Target 250 truck-route miles per leg, within 200–300 miles. One break/fuel stop, then overnight rest. Short delivery legs and available driving hours can require shorter legs.</div>
   <div class="small muted">Dispatcher inputs now flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
  </div>
@@ -71,6 +72,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
  </div>
 </div>
 
+<script src="stop-policy.js"></script>
 <script>
 let lastRoute=null,lastOrigin=null,lastDest=null,lastPlanStops=[];
 
@@ -216,11 +218,21 @@ function stopCard(s,title,note){
 }
 
 const LEG_POLICY={minMiles:200,targetMiles:250,maxMiles:300};
+let manualStopQueue=[],manualStopMode=false;
 function legDriveHours(route,speed){return Math.max(route.duration/3600,route.distance/1609.344/speed);}
 async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed){
  const maxMiles=Math.min(300,Math.floor(Math.min(hoursLeft,7.75)*speed));
  if(maxMiles<1)throw new Error('No driving time remains for another leg.');
  const minMiles=Math.min(200,Math.max(0,maxMiles-100));
+ if(manualStopMode){
+   const entered=manualStopQueue.shift();if(!entered)throw new Error('Add the next dispatcher-selected '+kind+' stop. The entered stop list ends before delivery.');
+   if(!allowedBrand(brandOf(entered.name),kind,network))throw new Error(entered.name+' is not in the approved '+kind+' network.');
+   const geo=await geocode(entered.address);if(!geo)throw new Error('Could not locate truck stop: '+entered.address);
+   const stop={...entered,lat:geo.lat,lng:geo.lng,kind};
+   const route=await routeThrough([origin,stop]);stop.miles=route.distance/1609.344;stop.driveHours=legDriveHours(route,speed);
+   if(stop.miles<minMiles||stop.miles>maxMiles||stop.driveHours>hoursLeft||stop.driveHours>=8)throw new Error(entered.name+' is '+stop.miles.toFixed(1)+' truck-route miles / '+stop.driveHours.toFixed(1)+' drive hours away; choose a stop within '+minMiles+'–'+maxMiles+' miles and the available clock.');
+   return stop;
+ }
  const r=await fetchTimed('/api/truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),profile:truckProfile(),kind,network,minMiles,maxMiles})});
  const j=await r.json();if(!r.ok)throw new Error(j.error||'Truck-stop search failed');
  const candidates=(j.stops||[]).filter(p=>p.miles>=minMiles&&p.miles<=maxMiles).sort((a,b)=>Math.abs(a.miles-250)-Math.abs(b.miles-250));
@@ -236,6 +248,10 @@ async function buildGenericPlan(){
  const trip=val('trip')||'UNNUMBERED',pickupAddress=val('pickup'),deliveryAddress=val('delivery');
  const maxHours=Number(val('maxHours')),avgSpeed=Number(val('avgSpeed')),cycle=Number(val('cycle'));
  if(!pickupAddress||!deliveryAddress)throw new Error('Pickup and delivery addresses are required.');
+ manualStopQueue=val('manualStops').split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(line=>{
+   const parts=line.split('|');if(parts.length!==2||!parts[0].trim()||!parts[1].trim())throw new Error('Each selected stop needs: Facility name | Full street address.');
+   return {name:parts[0].trim(),address:parts[1].trim()};
+ });manualStopMode=manualStopQueue.length>0;
  if(!Number.isFinite(maxHours)||maxHours<1||maxHours>11||!Number.isFinite(avgSpeed)||avgSpeed<10||avgSpeed>75||!Number.isFinite(cycle)||cycle<=0)throw new Error('Enter drive hours from 1–11, speed from 10–75 mph, and positive cycle hours.');
  status.innerHTML='<span class="spinner"></span>Locating current trip addresses…';
  // Sequential public lookups avoid simultaneous requests from one browser.
@@ -274,6 +290,7 @@ async function buildGenericPlan(){
    if(current.kind==='delivery')break;
  }
  if(current.kind!=='delivery')throw new Error('Trip exceeds the 16-day planning limit. Split the trip with dispatch.');
+ if(manualStopQueue.length)throw new Error('There are unused dispatcher-selected stops after the planned delivery. Review the stop order and remove extra stops.');
  if(totalHours>cycle)throw new Error('Estimated driving needs '+totalHours.toFixed(1)+' hours, exceeding the entered '+cycle+' cycle hours. Update available hours or plan a reset/recap with dispatch.');
  lastPlanStops=stops;lastOrigin=stops[0];lastDest=stops[stops.length-1];
  // Each selected leg has been truck-routed. No invented road geometry is exported.

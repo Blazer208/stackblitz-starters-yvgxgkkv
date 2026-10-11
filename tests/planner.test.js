@@ -5,11 +5,12 @@ const vm=require('node:vm');
 const {STOP_POLICY,brandOf,allowedBrand,normalizeMatches}=require('../stop-policy');
 const script=fs.readFileSync(require('node:path').join(__dirname,'../planner.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
 function fixture(distance=1100){
- const values={yard:'Start',pickup:'Start',delivery:'End',trip:'127532',driver:'Test',truck:'1',trailer:'1',maxHours:'10',avgSpeed:'55',cycle:'60',network:'Pilot / Flying J only',notes:'I-80',departureTime:'2026-10-13T06:00',deliveryTime:'2026-10-20T08:00',overallFeet:'75',widthInches:'102',heightInches:'162',grossWeight:'80000',trailerFeet:'53'};
+ const values={manualStops:'',yard:'Start',pickup:'Start',delivery:'End',trip:'127532',driver:'Test',truck:'1',trailer:'1',maxHours:'10',avgSpeed:'55',cycle:'60',network:'Pilot / Flying J only',notes:'I-80',departureTime:'2026-10-13T06:00',deliveryTime:'2026-10-20T08:00',overallFeet:'75',widthInches:'102',heightInches:'162',grossWeight:'80000',trailerFeet:'53'};
  const elements={};for(const [id,value]of Object.entries(values))elements[id]={value};
  for(const id of ['status','generated','plan','verificationHost','verifiedNavigation','generateBtn'])elements[id]={innerHTML:'',textContent:'',disabled:false,prepend(){},scrollIntoView(){}};
- const context=vm.createContext({document:{getElementById:id=>elements[id],createElement:()=>({}),querySelector:()=>({before(){}})},sessionStorage:{getItem:()=>null},window:{},console,AbortSignal,setTimeout,Blob});
+ const context=vm.createContext({brandOf,allowedBrand,document:{getElementById:id=>elements[id],createElement:()=>({}),querySelector:()=>({before(){}})},sessionStorage:{getItem:()=>null},window:{},console,AbortSignal,setTimeout,Blob});
  vm.runInContext(script,context);
+ const actualSelect=context.selectTruckStop;
  context.geocode=async address=>({lat:40,lng:address==='End'?distance:0});
  context.routeThrough=async points=>({distance:Math.abs(points[1].lng-points[0].lng)*1609.344,duration:Math.abs(points[1].lng-points[0].lng)/55*3600});
  context.selectTruckStop=async(origin,dest,kind,network,hoursLeft)=>{
@@ -17,7 +18,7 @@ function fixture(distance=1100){
    if(miles<=0)throw new Error('No hours');
    return {lat:40,lng:origin.lng+miles,name:kind==='break'?'Pilot':'Love\'s',address:'100 Truck Rd',kind,miles,driveHours:miles/55};
  };
- return {context,elements};
+ return {context,elements,actualSelect};
 }
 test('default stop spacing and approved fuel networks',()=>{
  assert.deepEqual(STOP_POLICY,{minMiles:200,targetMiles:250,maxMiles:300});
@@ -59,4 +60,17 @@ test('provider failure clears stale exports and always releases the generate but
 test('invalid driving inputs fail instead of being silently coerced',async()=>{
  const {context,elements}=fixture();elements.maxHours.value='12';
  await assert.rejects(context.buildGenericPlan(),/1–11/);
+});
+test('dispatcher-selected stop is checked with actual truck-route miles',async()=>{
+ const {context,actualSelect}=fixture();context.geocode=async()=>({lat:40,lng:250});
+ vm.runInContext('manualStopMode=true;manualStopQueue=[{name:"Pilot Travel Center",address:"100 Truck Rd"}];',context);
+ const stop=await actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55);
+ assert.equal(stop.miles,250);assert.equal(stop.kind,'break');
+});
+test('manual fuel stops outside company network or range are rejected',async()=>{
+ const {context,actualSelect}=fixture();context.geocode=async()=>({lat:40,lng:350});
+ vm.runInContext('manualStopMode=true;manualStopQueue=[{name:"Love\'s Travel Stop",address:"100 Truck Rd"}];',context);
+ await assert.rejects(actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55),/approved/);
+ vm.runInContext('manualStopQueue=[{name:"Pilot Travel Center",address:"100 Truck Rd"}];',context);
+ await assert.rejects(actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55),/350.0/);
 });

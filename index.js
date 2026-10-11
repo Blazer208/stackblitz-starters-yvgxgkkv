@@ -42,7 +42,12 @@ async function truckStops(req,res){
     if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}
     if(++quotaCalls>100)return json(res,429,{error:'Truck planning request limit reached; retry later'});
     const response=await fetch('https://pcmiler.alk.com/APIs/REST/v1.0/Service.svc/poi/alongRoute?dataset=Current',{method:'POST',headers:{Authorization:key,'Content-Type':'application/json'},signal:AbortSignal.timeout(25000),body:JSON.stringify(body)});
-    if(!response.ok){console.error('Truck-stop search upstream failure',response.status,response.url,(await response.text()).slice(0,1200));return json(res,response.status===401||response.status===403?503:502,{error:response.status===401||response.status===403?'Trimble truck-stop search access is unavailable. Enable the POIs Along the Route license for this API key.':'Truck-stop provider request failed',upstreamStatus:response.status});}
+    if(!response.ok){
+      const providerText=(await response.text()).slice(0,1200);
+      const unavailable=response.status===401||response.status===403||/trial keys|not licensed/i.test(providerText);
+      console.error('Truck-stop search upstream status',response.status,unavailable?'License/access unavailable':'Provider error');
+      return json(res,unavailable?503:502,{error:unavailable?'Automatic truck-stop search requires a licensed Trimble POIs Along the Route key. The current trial key does not support this feature. Enter dispatcher-selected stops below or upgrade provider access.':'Truck-stop provider request failed',upstreamStatus:response.status});
+    }
     const payload=await response.json();
     const value={stops:normalizeMatches(payload,kind,network),provider:'Trimble PC*Miler',window:{minMiles,maxMiles}};
     if(stopCache.size>=100)stopCache.delete(stopCache.keys().next().value);
@@ -96,7 +101,7 @@ const server = http.createServer((req, res) => {
   if (urlPath === '/api/truck-route') return truckRoute(req,res);
   if (urlPath === '/api/truck-stops') return truckStops(req,res);
   if (urlPath.startsWith('/api/')) return json(res,404,{error:'Unknown API endpoint'});
-  if (['/index.js','/stop-policy.js','/package.json','/package-lock.json'].includes(urlPath)) return json(res,403,{error:'Forbidden'});
+  if (urlPath.startsWith('/tests/')||['/index.js','/package.json','/package-lock.json'].includes(urlPath)) return json(res,403,{error:'Forbidden'});
   const requested = urlPath === '/' ? '/index.html' : urlPath;
   const filePath = path.normalize(path.join(root, requested));
 
