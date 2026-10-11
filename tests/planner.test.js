@@ -1,0 +1,62 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const {STOP_POLICY,brandOf,allowedBrand,normalizeMatches}=require('../stop-policy');
+const script=fs.readFileSync(require('node:path').join(__dirname,'../planner.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
+function fixture(distance=1100){
+ const values={yard:'Start',pickup:'Start',delivery:'End',trip:'127532',driver:'Test',truck:'1',trailer:'1',maxHours:'10',avgSpeed:'55',cycle:'60',network:'Pilot / Flying J only',notes:'I-80',departureTime:'2026-10-13T06:00',deliveryTime:'2026-10-20T08:00',overallFeet:'75',widthInches:'102',heightInches:'162',grossWeight:'80000',trailerFeet:'53'};
+ const elements={};for(const [id,value]of Object.entries(values))elements[id]={value};
+ for(const id of ['status','generated','plan','verificationHost','verifiedNavigation','generateBtn'])elements[id]={innerHTML:'',textContent:'',disabled:false,prepend(){},scrollIntoView(){}};
+ const context=vm.createContext({document:{getElementById:id=>elements[id],createElement:()=>({}),querySelector:()=>({before(){}})},sessionStorage:{getItem:()=>null},window:{},console,AbortSignal,setTimeout,Blob});
+ vm.runInContext(script,context);
+ context.geocode=async address=>({lat:40,lng:address==='End'?distance:0});
+ context.routeThrough=async points=>({distance:Math.abs(points[1].lng-points[0].lng)*1609.344,duration:Math.abs(points[1].lng-points[0].lng)/55*3600});
+ context.selectTruckStop=async(origin,dest,kind,network,hoursLeft)=>{
+   const miles=Math.min(250,Math.floor(hoursLeft*55));
+   if(miles<=0)throw new Error('No hours');
+   return {lat:40,lng:origin.lng+miles,name:kind==='break'?'Pilot':'Love\'s',address:'100 Truck Rd',kind,miles,driveHours:miles/55};
+ };
+ return {context,elements};
+}
+test('default stop spacing and approved fuel networks',()=>{
+ assert.deepEqual(STOP_POLICY,{minMiles:200,targetMiles:250,maxMiles:300});
+ assert.equal(brandOf('Flying J Travel Center #123'),'Flying J');
+ assert.equal(allowedBrand("Love's",'break','Pilot / Flying J only'),false);
+ assert.equal(allowedBrand("Love's",'rest','Pilot / Flying J only'),true);
+});
+test('provider matches require actual street addresses and coordinate/mileage data',()=>{
+ const item={POILocation:{PlaceName:'@Pilot Travel Center',Address:{StreetAddress:'100 Main St',City:'Test',State:'WY',Zip:'82001'},Coords:{Lat:'41',Lon:'-105'}},DistanceFromOrigin:{Value:251,DistanceUnits:0}};
+ const result=normalizeMatches({POISearchMatches:[item,item,{...item,POILocation:{...item.POILocation,Address:{City:'Test'}}}]},'break','Pilot / Flying J only');
+ assert.equal(result.length,1);assert.equal(result[0].miles,251);
+ assert.throws(()=>normalizeMatches({},'break','Pilot / Flying J only'));
+});
+test('multi-day trip uses two stops and keeps every leg within 300 miles',async()=>{
+ const {context,elements}=fixture();await context.buildGenericPlan();
+ const stops=vm.runInContext('lastPlanStops',context);
+ assert.deepEqual(Array.from(stops,s=>s.kind||'pickup'),['pickup','break','rest','break','rest','delivery']);
+ assert.ok(stops.slice(1).every(s=>s.miles<=300));
+ assert.match(elements.generated.innerHTML,/DAY 3/);assert.match(elements.generated.innerHTML,/1100.0 mi/);
+ assert.doesNotMatch(elements.generated.innerHTML,/Cedar Rapids|North Platte/);
+});
+test('short delivery has no invented break or overnight',async()=>{
+ const {context,elements}=fixture(150);await context.buildGenericPlan();
+ assert.equal(vm.runInContext('lastPlanStops.length',context),2);
+ assert.match(elements.generated.innerHTML,/Short leg/);assert.doesNotMatch(elements.generated.innerHTML,/DAY 2/);
+});
+test('cycle shortage blocks the completed plan',async()=>{
+ const {context,elements}=fixture();elements.cycle.value='3';
+ await assert.rejects(context.buildGenericPlan(),/cycle hours/);
+ assert.equal(vm.runInContext('lastPlanStops.length',context),0);
+});
+test('provider failure clears stale exports and always releases the generate button',async()=>{
+ const {context,elements}=fixture();context.selectTruckStop=async()=>{throw new Error('Truck-stop license unavailable');};
+ vm.runInContext('lastPlanStops=[{name:"Old stop"}];',context);elements.generated.innerHTML='Old trip';
+ await context.buildPlan();assert.equal(vm.runInContext('lastPlanStops.length',context),0);
+ assert.equal(elements.generateBtn.disabled,false);assert.equal(elements.generated.innerHTML,'');
+ assert.match(elements.status.innerHTML,/Truck-stop license unavailable/);
+});
+test('invalid driving inputs fail instead of being silently coerced',async()=>{
+ const {context,elements}=fixture();elements.maxHours.value='12';
+ await assert.rejects(context.buildGenericPlan(),/1–11/);
+});
