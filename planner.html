@@ -54,7 +54,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   <div style="margin-top:12px"><label>Company route / highways</label><textarea id="notes">I-94 → US-151 → I-80 → I-15 → local to Springville</textarea></div>
   <div class="grid" style="margin-top:12px">
    <div><label>Approved fuel network</label><select id="network"><option>Pilot / Flying J only</option><option>Pilot / Flying J + Love's</option><option>All approved networks</option></select></div>
-   <div><label>Daily strategy</label><select id="strategy"><option>Two stops per day — break/fuel + final rest</option><option>Hard first day, balanced later days</option><option>Balanced days</option></select></div>
+   <div><label>Daily strategy</label><select id="strategy"><option>200–300 miles per leg — break/fuel + final rest</option></select></div>
   </div>
   <div class="actions">
    <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
@@ -304,6 +304,8 @@ async function buildGenericPlan(){
 async function buildPlan(){
  const btn=document.getElementById("generateBtn");
  if(btn.disabled)return;
+ const controls=Array.from(document.querySelectorAll?.('.form-card input,.form-card select,.form-card textarea')||[]);
+ const previousDisabled=controls.map(c=>c.disabled);controls.forEach(c=>c.disabled=true);
  lastRoute=null;lastPlanStops=[];lastOrigin=null;lastDest=null;confirmedStops=new Set();verifiedTripSignature="";
  document.getElementById("generated").innerHTML="";
  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Building Trip Plan…';
@@ -315,8 +317,22 @@ async function buildPlan(){
    timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
    document.getElementById("generated").prepend(timing);
  }catch(e){document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>'}
- finally{btn.disabled=false;btn.textContent="Generate Trip Plan"}
+ finally{controls.forEach((c,i)=>c.disabled=previousDisabled[i]);btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
+
+(function(){
+ const form=document.querySelector('.form-card');
+ if(!form?.addEventListener)return;
+ for(const control of form.querySelectorAll('input,select,textarea')){
+   const label=control.previousElementSibling;if(label?.tagName==='LABEL')label.htmlFor=control.id;
+ }
+ form.addEventListener('input',()=>{
+   if(!lastPlanStops.length)return;
+   lastRoute=null;lastPlanStops=[];lastOrigin=null;lastDest=null;confirmedStops=new Set();verifiedTripSignature='';
+   document.getElementById('generated').innerHTML='';
+   document.getElementById('status').textContent='Trip inputs changed. Generate a new plan before printing or exporting.';
+ });
+})();
 
 (function(){
  let d=null;
