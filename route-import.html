@@ -5,7 +5,7 @@
 *{box-sizing:border-box}body{margin:0;background:#0a1220;color:#f4f7fb;font:16px system-ui,Arial}.wrap{max-width:900px;margin:auto;padding:20px}.card{border:1px solid #30445d;border-radius:15px;background:#111c2e;padding:18px;margin:18px 0}label{display:block;margin:12px 0 6px}input,textarea{width:100%;border-radius:9px;padding:12px;background:#091526;color:white;border:1px solid #385170}textarea{min-height:140px}button,.button{display:inline-block;margin:7px 7px 7px 0;border:0;border-radius:9px;padding:12px;background:#3b82f6;color:white;font-weight:700;text-decoration:none;cursor:pointer}button:disabled{opacity:.5}.secondary{background:#263e59}small,.muted{color:#afc1d8}.warn{color:#fbd38d} .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:620px){.grid{grid-template-columns:1fr}}</style></head>
 <body><div class="wrap"><h1>Scan Dispatch Route</h1><p class="muted">Import a PC*MILER routing sheet, review the extracted fields, then transfer them to the existing planner. This is a test feature; no route is verified truck-safe here.</p>
 <div class="card"><h2>1. Upload a route sheet</h2><label for="upload">Photo, screenshot, or PDF</label><input type="file" id="upload" accept="image/*,.pdf,application/pdf"><button id="scan" type="button">Read Route Sheet</button><p id="status" role="status">Choose a file to begin. Clear, straight-on photos work best.</p></div>
-<div class="card"><h2>2. Review extracted details</h2><div class="grid"><div><label>Origin</label><input id="origin" placeholder="City, state or full address"></div><div><label>Destination</label><input id="destination" placeholder="City, state or full address"></div><div><label>Reported miles</label><input id="miles" placeholder="e.g. 1521.1"></div><div><label>Detected intermediate stop</label><input id="stop" placeholder="Stop / waypoint"></div></div>
+<div class="card"><h2>Upload a load card (optional)</h2><label for="loadUpload">Load card photo, screenshot, or PDF</label><input type="file" id="loadUpload" accept="image/*,.pdf,application/pdf"><button id="scanLoad" type="button">Read Load Card</button><p id="loadStatus" role="status">Upload the load card for this same trip. Review appointments before transfer; pickup time is separate from your departure.</p><div class="grid"><div><label for="load_trip">Trip number</label><input id="load_trip"></div><div><label for="load_driver">Driver</label><input id="load_driver"></div><div><label for="load_truck">Truck</label><input id="load_truck"></div><div><label for="load_trailer">Trailer</label><input id="load_trailer"></div><div><label for="load_pickup">Pickup address</label><input id="load_pickup"></div><div><label for="load_delivery">Delivery address</label><input id="load_delivery"></div><div><label for="load_pickupTime">Pickup appointment</label><input id="load_pickupTime" type="datetime-local"></div><div><label for="load_deliveryTime">Delivery appointment</label><input id="load_deliveryTime" type="datetime-local"></div><div><label for="load_departureTime">Departure date and time (confirm separately)</label><input id="load_departureTime" type="datetime-local"></div><div><label for="load_weight">Load weight</label><input id="load_weight"></div><div><label for="load_commodity">Commodity / quantity</label><input id="load_commodity"></div><div><label for="load_reefer">Reefer instruction</label><input id="load_reefer"></div></div><label for="loadRaw">Load card text (editable)</label><textarea id="loadRaw"></textarea><button id="reparseLoad" class="secondary" type="button">Reprocess Load Card Text</button></div><div class="card"><h2>2. Review extracted details</h2><div class="grid"><div><label>Origin</label><input id="origin" placeholder="City, state or full address"></div><div><label>Destination</label><input id="destination" placeholder="City, state or full address"></div><div><label>Reported miles</label><input id="miles" placeholder="e.g. 1521.1"></div><div><label>Detected intermediate stop</label><input id="stop" placeholder="Stop / waypoint"></div></div>
 <label>Consolidated road sequence (editable)</label><textarea id="roads" placeholder="Interstates and highways in order"></textarea>
 <label>Extracted text — correct mistakes here before reprocessing</label><textarea id="raw" style="min-height:210px"></textarea><button class="secondary" id="reparse">Reprocess Edited Text</button></div>
 <div class="card"><h2>3. Transfer to planner</h2><p class="warn">Required: manually confirm every highway, stop, address, and truck restriction against an approved truck-routing system. Upload OCR does not validate low bridges, restricted roads, road closures, or HOS compliance.</p><label><input type="checkbox" id="reviewed" style="width:auto"> I reviewed and corrected the extracted route.</label><button id="transfer">Open Planner with Reviewed Route</button><a class="button secondary" href="planner.html">Open Planner Without Import</a></div></div>
@@ -31,6 +31,78 @@ function parseRoute(){
  $("roads").value=roads.join(" → ");
  $("status").textContent=roads.length?"Extracted "+roads.length+" highway sections. Check all fields before transfer.":"Text read, but no road sequence was confidently detected. Enter highways manually or try a clearer scan.";
 }
+
+const loadFields=["trip","driver","truck","trailer","pickup","delivery","pickupTime","deliveryTime","departureTime","weight","commodity","reefer"];
+function cardDate(text){
+ const months={january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12};
+ let m=text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\s+(\d{1,2}):(\d{2})/i);
+ if(m)return m[3]+"-"+String(months[m[1].toLowerCase()]).padStart(2,"0")+"-"+m[2].padStart(2,"0")+"T"+m[4].padStart(2,"0")+":"+m[5];
+ m=text.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December),?\s+(\d{4})\s+(\d{1,2}):(\d{2})/i);
+ if(m)return m[3]+"-"+String(months[m[2].toLowerCase()]).padStart(2,"0")+"-"+m[1].padStart(2,"0")+"T"+m[4].padStart(2,"0")+":"+m[5];
+ return "";
+}
+function addressFrom(block){
+ const lines=block.split("\n").map(clean).filter(Boolean);
+ const street=lines.findIndex(x=>/^\d+\s+(?:(?:N|S|E|W|NORTH|SOUTH|EAST|WEST)\s+)?[\w ]+/i.test(x)&&!/\b(?:PCS|LB|PALLETS)\b/i.test(x));
+ if(street<0)return "";
+ const city=lines.slice(street+1).find(x=>/\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/.test(x)&&!/PO BOX|PHONE/i.test(x));
+ return city?lines[street]+", "+city:"";
+}
+function parseLoadCard(){
+ const s=$("loadRaw").value.replace(/\r/g,"");
+ const put=(id,v)=>{if(v)$("load_"+id).value=clean(v);};
+ let m=s.match(/TRIP\s*#?\s*([\d,]+)/i);if(m)put("trip",m[1].replace(/,/g,""));
+ m=s.match(/DRIVER\s*:\s*([^\n]+)/i);if(m)put("driver",m[1].split(/\bTRUCK\b/i)[0]);
+ m=s.match(/TRUCK\s*:\s*(\d+)/i);if(m)put("truck",m[1]);
+ m=s.match(/TRAILER\s*:\s*(\d+)/i);if(m)put("trailer",m[1]);
+ const pickup=s.split(/\bPICK\s+\d+/i)[1]?.split(/Billing#|LEG\s*#\s*2/i)[0]||"";
+ const drop=s.split(/\bDROP\b\s+\d+/i)[1]||s.split(/LEG\s*#\s*2/i)[1]||"";
+ put("pickup",addressFrom(pickup));put("delivery",addressFrom(drop));
+ const pt=s.match(/Pick\s*Up\s*Time\s*([\s\S]{0,200})/i);
+ if(pt)put("pickupTime",cardDate(pt[1]));
+ const dt=s.match(/Deliver\s*On\s*:\s*([\s\S]{0,200})/i);
+ if(dt)put("deliveryTime",cardDate(dt[1]));
+ m=s.match(/(?:Pick\s*Up\s*Weight|Weight on truck after pick up)\s*([\d,]+)/i);if(m)put("weight",m[1]+" lb");
+ m=s.match(/What are you picking up\?\s*(.*?)\s*How many\?\s*([\d,]+\s*\w+)/i);if(m)put("commodity",clean(m[1])+" • "+clean(m[2]));
+ m=s.match(/Re(?:fer|efer)\s*Temp\?\s*([^\n]+)/i);if(m)put("reefer",m[1]);
+ if($("load_pickup").value)$("origin").value=$("load_pickup").value;
+ if($("load_delivery").value)$("destination").value=$("load_delivery").value;
+ $("reviewed").checked=false;
+ $("loadStatus").textContent="Load card read. Check every extracted field, especially addresses and dates. Blank fields need manual entry. Departure is not inferred from pickup time.";
+}
+async function readSheet(file,statusId){
+ if(file.type==="application/pdf"||/\.pdf$/i.test(file.name)){
+  $(statusId).textContent="Reading PDF pages…";
+  const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.mjs";
+  const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+  let text="";
+  for(let p=1;p<=Math.min(pdf.numPages,12);p++){
+   const page=await pdf.getPage(p),items=await page.getTextContent();
+   for(const item of items.items){text+=item.str+(item.hasEOL?"\n":" ");}
+   text+="\n";
+  }
+  if(text.trim().length<60)throw Error("Scanned PDF: upload a clear photo of the page.");
+  return text;
+ }
+ $(statusId).textContent="Reading image text on your device…";
+ if(!window.Tesseract){
+  const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+  await new Promise((res,rej)=>{script.onload=res;script.onerror=()=>rej(Error("Image reader could not load."));document.head.appendChild(script);});
+ }
+ return (await Tesseract.recognize(file,"eng")).data.text||"";
+}
+$("scanLoad").onclick=async()=>{
+ const file=$("loadUpload").files[0];if(!file){$("loadStatus").textContent="Choose a load card first.";return;}
+ $("scanLoad").disabled=true;$("scan").disabled=true;
+ loadFields.forEach(id=>$("load_"+id).value="");$("reviewed").checked=false;
+ try{$("loadRaw").value=await readSheet(file,"loadStatus");parseLoadCard();}
+ catch(e){$("loadStatus").textContent="Could not read load card: "+e.message+" Paste its text below or enter fields manually.";}
+ finally{$("scanLoad").disabled=false;$("scan").disabled=false;}
+};
+$("reparseLoad").onclick=parseLoadCard;
+document.querySelectorAll("input,textarea").forEach(el=>el.addEventListener("input",()=>{$("reviewed").checked=false;}));
+
 $("reparse").onclick=parseRoute;
 $("scan").onclick=async()=>{
  const file=$("upload").files[0];if(!file){$("status").textContent="Choose a photo or PDF first.";return;}
@@ -58,14 +130,15 @@ $("scan").onclick=async()=>{
 };
 $("transfer").onclick=()=>{
  if(!$("reviewed").checked){alert("Review the route and tick the confirmation first.");return;}
- if(!$("origin").value.trim()||!$("destination").value.trim()){alert("Origin and destination are required.");return;}
- const data={origin:$("origin").value.trim(),destination:$("destination").value.trim(),miles:$("miles").value.trim(),stop:$("stop").value.trim(),roads:$("roads").value.trim(),reviewedAt:new Date().toISOString()};
+ if(!($("load_pickup").value.trim()||$("origin").value.trim())||!($("load_delivery").value.trim()||$("destination").value.trim())){alert("Origin and destination are required.");return;}
+ const load={};loadFields.forEach(id=>{const v=$("load_"+id).value.trim();if(v)load[id]=v;});
+ const data={load,origin:load.pickup||$("origin").value.trim(),destination:load.delivery||$("destination").value.trim(),miles:$("miles").value.trim(),stop:$("stop").value.trim(),roads:$("roads").value.trim(),reviewedAt:new Date().toISOString()};
  sessionStorage.setItem("dispatchProReviewedImport",JSON.stringify(data));
- // Existing planner receives input through URL params in a later integration.
+ // Transfer reviewed values through this browser tab.
  // Also copy the route text so it can be pasted into the route field immediately.
  const payload=[data.roads,data.stop?"Waypoint: "+data.stop:""].filter(Boolean).join(" | ");
  navigator.clipboard?.writeText(payload).catch(()=>{});
- alert("Reviewed route saved in this browser tab. The next step is connecting the planner's fields. For now copy the highway sequence from this screen into Company route / highways.");
+
  location.href="planner.html";
 };
 </script></body></html>
