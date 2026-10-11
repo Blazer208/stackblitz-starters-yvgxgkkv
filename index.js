@@ -41,7 +41,7 @@ async function truckStops(req,res){
     const cached=stopCache.get(cacheKey);if(cached&&Date.now()-cached.at<3600000)return json(res,200,cached.value);
     if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}
     if(++quotaCalls>100)return json(res,429,{error:'Truck planning request limit reached; retry later'});
-    const response=await fetch('https://pcmiler.alk.com/apis/rest/v1.0/service.svc/poi/alongRoute',{method:'POST',headers:{Authorization:key,'Content-Type':'application/json'},signal:AbortSignal.timeout(25000),body:JSON.stringify(body)});
+    const response=await fetch('https://pcmiler.alk.com/APIs/REST/v1.0/Service.svc/poi/alongRoute',{method:'POST',headers:{Authorization:key,'Content-Type':'application/json'},signal:AbortSignal.timeout(25000),body:JSON.stringify(body)});
     if(!response.ok)return json(res,response.status===401||response.status===403?503:502,{error:response.status===401||response.status===403?'Trimble truck-stop search access is unavailable. Enable the POIs Along the Route license for this API key.':'Truck-stop provider request failed',upstreamStatus:response.status});
     const payload=await response.json();
     const value={stops:normalizeMatches(payload,kind,network),provider:'Trimble PC*Miler',window:{minMiles,maxMiles}};
