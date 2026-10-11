@@ -354,8 +354,8 @@ async function buildPlan(){
  try{
    const departure=val("departureTime"),appointment=val("deliveryTime");
    if(departure&&appointment&&new Date(departure)>new Date(appointment))throw new Error("Departure must be before the delivery appointment.");
-   if(val("trip")==="127532"){await build127532();}
-   else if(val("trip")==="127482"){await build127482();}
+   if(!window.dispatchProImportedTrip&&val("trip")==="127532"){await build127532();}
+   else if(!window.dispatchProImportedTrip&&val("trip")==="127482"){await build127482();}
    else{await buildGenericPlan();}
    const timing=document.createElement("div");timing.className="notice small";
    timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
@@ -369,9 +369,19 @@ async function buildPlan(){
  try{d=JSON.parse(sessionStorage.getItem('dispatchProReviewedImport')||'null');}catch(e){}
  if(!d||!d.reviewedAt||!d.origin||!d.destination)return;
  sessionStorage.removeItem('dispatchProReviewedImport');
+ window.dispatchProImportedTrip=true;
  const set=(id,value)=>{const x=document.getElementById(id);if(x)x.value=value;};
  set('yard',d.origin);set('pickup',d.origin);set('delivery',d.destination);
  set('trip','IMPORT-'+Date.now().toString().slice(-6));
+ const load=d.load||{};
+ set('deliveryTime',load.deliveryTime||'');
+ set('departureTime',load.departureTime||'');
+ for(const id of ['trip','driver','truck','trailer','pickup','delivery','departureTime','deliveryTime','weight','commodity','reefer'])if(load[id])set(id,load[id]);
+ if(load.pickupTime){
+  const note=document.createElement('div');note.className='card form-card';
+  note.textContent='Imported pickup appointment: '+load.pickupTime.replace('T',' ')+' (confirm appointment timezone). Confirm departure separately.';
+  document.querySelector('.form-card').before(note);
+ }
  set('notes',[d.roads,d.stop?'Required dispatch waypoint: '+d.stop:'',d.miles?'Reference PC*MILER miles: '+d.miles:''].filter(Boolean).join(' | '));
  const x=document.createElement('div');x.className='card form-card';
  x.innerHTML='<b>Imported route loaded for review.</b> Verify all addresses, required waypoints, highways and truck restrictions before generating a plan. Route notes do not force the router to use those highways.';
