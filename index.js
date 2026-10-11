@@ -2,6 +2,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const {normalizeMatches}=require('./stop-policy');
+const {createAuth}=require('./auth');
+const auth=createAuth({dbPath:process.env.AUTH_DB_PATH||'/data/accounts.sqlite',origin:process.env.APP_ORIGIN,setupHash:process.env.OWNER_SETUP_TOKEN_HASH,setupExpires:process.env.OWNER_SETUP_EXPIRES?Number(process.env.OWNER_SETUP_EXPIRES):Date.now()+86400000});
 
 const port = process.env.PORT || 3000;
 const root = __dirname;
@@ -96,13 +98,34 @@ async function truckRoute(req, res) {
     return json(res,200,result);
   } catch(e) { return json(res,502,{error:'Truck routing unavailable; retry or contact dispatcher'}); }
 }
-const server = http.createServer((req, res) => {
+const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js']);
+const protectedFiles=new Set(['/planner.html','/route-import.html','/Route_Stride_Demo.html']);
+const securityHeaders={
+ 'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
+ 'Strict-Transport-Security':'max-age=31536000',
+ 'Permissions-Policy':'camera=(), microphone=(), geolocation=()',
+ 'Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://api.qrserver.com; connect-src 'self' https://nominatim.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+};
+const server = http.createServer(async (req, res) => {
+  for(const [key,value]of Object.entries(securityHeaders))res.setHeader(key,value);
+  if(req.url?.startsWith('/api/auth/')||req.url?.startsWith('/login')||req.url?.startsWith('/signup'))res.setHeader('Cache-Control','no-store');
   let urlPath;try{urlPath=decodeURIComponent((req.url||'/').split('?')[0]);}catch(e){return json(res,400,{error:'Invalid URL'});}
+  try{if(await auth.handle(req,res,urlPath))return;}catch(e){return json(res,503,{error:'Account service unavailable'});}
+  if(urlPath==='/api/truck-route'||urlPath==='/api/truck-stops'){
+    const user=auth.userFor(req);if(!user)return json(res,401,{error:'Sign in required'});
+    if(req.method==='POST'&&!auth.sameOrigin(req))return json(res,403,{error:'Invalid request origin'});
+    if(!auth.limit('routing:'+user.id,100,3600000))return json(res,429,{error:'Your hourly planning limit has been reached. Try later.'});
+    if(!auth.limit('routing-burst:'+user.id,40,60000))return json(res,429,{error:'Too many planning requests. Try shortly.'});
+  }
   if (urlPath === '/api/truck-route') return truckRoute(req,res);
   if (urlPath === '/api/truck-stops') return truckStops(req,res);
   if (urlPath.startsWith('/api/')) return json(res,404,{error:'Unknown API endpoint'});
-  if (urlPath.startsWith('/tests/')||['/index.js','/package.json','/package-lock.json'].includes(urlPath)) return json(res,403,{error:'Forbidden'});
   const requested = urlPath === '/' ? '/index.html' : urlPath;
+  if(requested==='/login.html'||requested==='/signup.html')res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'");
+  if(requested==='/route-import.html')res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://tessdata.projectnaptha.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'");
+  if(!publicFiles.has(requested)&&!protectedFiles.has(requested))return json(res,404,{error:'Not found'});
+  if(protectedFiles.has(requested)&&!auth.userFor(req)){res.writeHead(302,{'Location':'/login.html','Cache-Control':'no-store'});return res.end();}
+  if(!['GET','HEAD'].includes(req.method))return json(res,405,{error:'Use GET'});
   const filePath = path.normalize(path.join(root, requested));
 
   if (!filePath.startsWith(root + path.sep) || !Object.keys(mime).includes(path.extname(filePath).toLowerCase())) {
