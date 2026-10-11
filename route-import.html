@@ -42,10 +42,13 @@ function cardDate(text){
  return "";
 }
 function addressFrom(block){
- const lines=block.split("\n").map(clean).filter(Boolean);
- const street=lines.findIndex(x=>/^\d+\s+(?:(?:N|S|E|W|NORTH|SOUTH|EAST|WEST)\s+)?[\w ]+/i.test(x)&&!/\b(?:PCS|LB|PALLETS)\b/i.test(x));
+ const strip=v=>clean(v).split(/\b(?:Deliver\s*On|Pick\s*Up\s*Time|Phone|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Drop\s*Off\s*Weight|Weight\s*Left)\b/i)[0].trim();
+ const lines=block.split("\n").map(strip).filter(Boolean);
+ const street=lines.findIndex(x=>/^\d+\s+/i.test(x)&&!/\b(?:January|February|March|April|May|June|July|August|September|October|November|December|PCS|LB|PALLETS)\b/i.test(x));
  if(street<0)return "";
- const city=lines.slice(street+1).find(x=>/\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/.test(x)&&!/PO BOX|PHONE/i.test(x));
+ const endAtZip=v=>{const m=v.match(/^(.+?\b[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b/);return m?m[1].trim():"";};
+ const sameLine=endAtZip(lines[street]);if(sameLine)return sameLine;
+ const city=lines.slice(street+1).map(endAtZip).find(x=>x&&!/PO BOX/i.test(x));
  return city?lines[street]+", "+city:"";
 }
 function parseLoadCard(){
