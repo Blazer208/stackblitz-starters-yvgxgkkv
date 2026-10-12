@@ -35,7 +35,7 @@ async function truckStops(req,res){
   try{
     let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>32768)return json(res,413,{error:'Request too large'});}
     const {points,profile={},kind='break',network='Pilot / Flying J only',minMiles=200,maxMiles=300}=JSON.parse(raw);
-    if(!Array.isArray(points)||points.length!==2||points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)||Math.abs(p.lat)>90||Math.abs(p.lng)>180)||!['break','rest'].includes(kind)||!Number.isFinite(minMiles)||!Number.isFinite(maxMiles)||minMiles<0||maxMiles<=minMiles||maxMiles>300||maxMiles-minMiles>100)return json(res,400,{error:'Invalid truck-stop search window'});
+    if(!Array.isArray(points)||points.length!==2||points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)||Math.abs(p.lat)>90||Math.abs(p.lng)>180)||!['break','rest'].includes(kind)||!Number.isFinite(minMiles)||!Number.isFinite(maxMiles)||minMiles<0||maxMiles<=minMiles||maxMiles>450||maxMiles-minMiles>150)return json(res,400,{error:'Invalid truck-stop search window'});
     const h=Number(profile.heightInches??162),w=Number(profile.widthInches??102),g=Number(profile.grossWeight??80000),l=Number(profile.trailerFeet??53),o=Number(profile.overallFeet??75);
     if(!Number.isFinite(h)||h<60||h>180||!Number.isFinite(w)||w<60||w>102||!Number.isFinite(g)||g<1000||g>80000||!Number.isFinite(l)||l<1||l>53||!Number.isFinite(o)||o<=l||o>100)return json(res,400,{error:'Invalid truck profile'});
     const body={PoiRoute:{Stops:points.map(p=>({Coords:{Lat:String(p.lat),Lon:String(p.lng)},Region:4})),Options:{VehicleType:0,RoutingType:0,HighwayOnly:false,DistanceUnits:0,TruckCfg:{Units:0,Height:String(h),Width:String(w),Weight:String(g),Length:String(l*12),MaxStraightLength:String(l*12),BumperToBumperLength:String(o*12)}}},RouteLegIndex:0,SearchType:4,GenericPOICategories:[151],SearchWindowUnits:0,SearchWindowStart:minMiles,SearchWindowEnd:maxMiles,AirDistanceThreshold:2.5};
@@ -48,7 +48,7 @@ async function truckStops(req,res){
       const providerText=(await response.text()).slice(0,1200);
       const unavailable=response.status===401||response.status===403||/trial keys|not licensed/i.test(providerText);
       console.error('Truck-stop search upstream status',response.status,unavailable?'License/access unavailable':'Provider error');
-      return json(res,unavailable?503:502,{error:unavailable?'Automatic truck-stop search requires a licensed Trimble POIs Along the Route key. The current trial key does not support this feature. Enter dispatcher-selected stops below or upgrade provider access.':'Truck-stop provider request failed',upstreamStatus:response.status});
+      return json(res,unavailable?503:502,{error:unavailable?'Automatic truck-stop search requires a licensed Trimble POIs Along the Route key. The current trial key does not support this feature. Automatic planning for new multi-day trips is unavailable until provider access is upgraded.':'Truck-stop provider request failed',upstreamStatus:response.status});
     }
     const payload=await response.json();
     const value={stops:normalizeMatches(payload,kind,network),provider:'Trimble PC*Miler',window:{minMiles,maxMiles}};
@@ -147,7 +147,7 @@ const server = http.createServer(async (req, res) => {
             'Pragma': 'no-cache',
             'Expires': '0',
             'Surrogate-Control': 'no-store',
-            'X-Route-Stride-Version': '0.6.2'
+            'X-Route-Stride-Version': '0.6.3'
           });
           res.end(fallback);
         });
@@ -162,7 +162,7 @@ const server = http.createServer(async (req, res) => {
       'Pragma': 'no-cache',
       'Expires': '0',
       'Surrogate-Control': 'no-store',
-      'X-Route-Stride-Version': '0.6.2'
+      'X-Route-Stride-Version': '0.6.3'
     };
     res.writeHead(200, headers);
     res.end(data);
