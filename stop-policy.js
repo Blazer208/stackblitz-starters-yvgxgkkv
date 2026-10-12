@@ -1,5 +1,15 @@
 // Shared truck-stop policy; distances are truck-route miles, never air miles.
-const STOP_POLICY = Object.freeze({minMiles:200,targetMiles:250,maxMiles:300});
+const STOP_POLICY = Object.freeze({minMiles:250,targetMiles:300,maxMiles:350});
+function stopWindow(kind,hoursLeft,speed,require300=false){
+ if(!['break','rest'].includes(kind)||!Number.isFinite(hoursLeft)||hoursLeft<=0||!Number.isFinite(speed)||speed<10||speed>75)throw new Error('Invalid stop-planning hours or speed.');
+ const clockMiles=Math.floor(Math.min(hoursLeft,7.75)*speed);
+ const maxMiles=Math.min(kind==='break'?350:450,clockMiles);
+ if(require300&&maxMiles<300)throw new Error('The first-stop 300-mile minimum cannot fit the available driving hours. Review the load requirement with dispatch.');
+ if(maxMiles<1)throw new Error('No driving time remains for another leg.');
+ const minMiles=require300?300:kind==='break'?Math.min(250,Math.max(0,maxMiles-100)):Math.max(0,maxMiles-100);
+ if(maxMiles<=minMiles)throw new Error('No search window remains for a suitable stop within the available hours.');
+ return {minMiles,maxMiles,targetMiles:kind==='break'?Math.min(300,maxMiles):Math.max(minMiles,maxMiles-25)};
+}
 function brandOf(name) {
   if (/\bflying\s*j\b/i.test(name)) return 'Flying J';
   if (/\bpilot\b/i.test(name)) return 'Pilot';
@@ -31,4 +41,4 @@ function normalizeMatches(payload,kind,network) {
     seen.add(key);return true;
   }).sort((a,b)=>Math.abs(a.miles-STOP_POLICY.targetMiles)-Math.abs(b.miles-STOP_POLICY.targetMiles));
 }
-if(typeof module!=='undefined')module.exports={STOP_POLICY,brandOf,allowedBrand,normalizeMatches};
+if(typeof module!=='undefined')module.exports={STOP_POLICY,stopWindow,brandOf,allowedBrand,normalizeMatches};
