@@ -27,7 +27,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
  <div id="invitationPanel" class="card no-print" hidden><label for="inviteUrl">Single-use invitation — expires in 24 hours. Share only with your intended tester.</label><input id="inviteUrl" readonly></div>
  <div class="hero">
   <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Professional Driver Trip Planner</div></div></div>
-  <div class="version">VERSION 0.6.2 — 200–300 MILE LEGS</div>
+  <div class="version">VERSION 0.6.3 — 300-MILE FIRST LEG</div>
  </div>
 
  <div class="card form-card">
@@ -56,14 +56,15 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   <div style="margin-top:12px"><label>Company route / highways</label><textarea id="notes">I-94 → US-151 → I-80 → I-15 → local to Springville</textarea></div>
   <div class="grid" style="margin-top:12px">
    <div><label>Approved fuel network</label><select id="network"><option>Pilot / Flying J only</option><option>Pilot / Flying J + Love's</option><option>All approved networks</option></select></div>
-   <div><label>Daily strategy</label><select id="strategy"><option>200–300 miles per leg — break/fuel + final rest</option></select></div>
+   <div><label>Daily strategy</label><select id="strategy"><option>First break near 300 miles — then use remaining drive hours</option></select></div>
   </div>
   <div class="actions">
    <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
    <button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button>
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
-  <div class="notice small"><b>Stop spacing:</b> Target 250 truck-route miles per leg, within 200–300 miles. One break/fuel stop, then overnight rest. Short delivery legs and available driving hours can require shorter legs.</div>
+  <div style="margin-top:12px"><label style="display:flex;gap:8px;align-items:center"><input id="require300" type="checkbox" style="width:auto">This load requires at least 300 truck-route miles before the first stop after pickup</label><div class="small muted">Use only when dispatch requires it. If the available clock cannot support the minimum, planning stops for dispatch review.</div></div>
+  <div class="notice small"><b>Daily strategy:</b> Target the first break/fuel stop near 300 truck-route miles (normally 250–350), then overnight or delivery within remaining daily drive hours. Actual routed hours and available clock control; five hours is an estimate, not a fixed cutoff. The 300-mile minimum applies only to the first stop after pickup when selected.</div>
   <div class="small muted">Dispatcher inputs now flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
  </div>
 
@@ -219,13 +220,11 @@ function stopCard(s,title,note){
  return `<div class="stop"><div class="stopTitle">${esc(title)} — ${esc(s.name)}</div><div class="addr">${esc(s.address)}</div><div class="meta">${note}<br>${target}</div>${navBlock(s)}</div>`;
 }
 
-const LEG_POLICY={minMiles:200,targetMiles:250,maxMiles:300};
+const LEG_POLICY=STOP_POLICY;
 let manualStopQueue=[],manualStopMode=false;
 function legDriveHours(route,speed){return Math.max(route.duration/3600,route.distance/1609.344/speed);}
-async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed){
- const maxMiles=Math.min(300,Math.floor(Math.min(hoursLeft,7.75)*speed));
- if(maxMiles<1)throw new Error('No driving time remains for another leg.');
- const minMiles=Math.min(200,Math.max(0,maxMiles-100));
+async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,require300=false){
+ const {minMiles,maxMiles,targetMiles}=stopWindow(kind,hoursLeft,speed,require300);
  if(manualStopMode){
    const entered=manualStopQueue.shift();if(!entered)throw new Error('Add the next dispatcher-selected '+kind+' stop. The entered stop list ends before delivery.');
    if(!allowedBrand(brandOf(entered.name),kind,network))throw new Error(entered.name+' is not in the approved '+kind+' network.');
@@ -237,7 +236,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed){
  }
  const r=await fetchTimed('/api/truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),profile:truckProfile(),kind,network,minMiles,maxMiles})});
  const j=await r.json();if(!r.ok)throw new Error(r.status===503?'Automatic truck-stop selection is unavailable with the current provider access. New multi-day plans cannot be generated yet.':j.error||'Truck-stop search failed');
- const candidates=(j.stops||[]).filter(p=>p.miles>=minMiles&&p.miles<=maxMiles).sort((a,b)=>Math.abs(a.miles-250)-Math.abs(b.miles-250));
+ const candidates=(j.stops||[]).filter(p=>p.miles>=minMiles&&p.miles<=maxMiles).sort((a,b)=>Math.abs(a.miles-targetMiles)-Math.abs(b.miles-targetMiles));
  for(const stop of candidates.slice(0,3)){
    const route=await routeThrough([origin,stop]);
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
@@ -274,12 +273,13 @@ async function buildGenericPlan(){
    if(dayIndex===1&&yardMiles>0)entries.push({...pickupStop,kind:'pickup',miles:yardMiles,driveHours:yardHours});
    for(let leg=0;leg<2;leg++){
      const miles=remaining.distance/1609.344,hours=legDriveHours(remaining,avgSpeed);
-     if(miles<=300&&hours<8&&dayHours+hours<=maxHours){
+     if(hours<(leg===0?7.75-dayHours:7.75)&&dayHours+hours<=maxHours){
+       if(dayIndex===1&&leg===0&&document.getElementById('require300').checked&&miles<300)throw new Error('Delivery is within 300 miles of pickup; this trip cannot meet the selected first-stop minimum. Review with dispatch.');
        const end={...deliveryStop,miles,driveHours:hours};entries.push(end);stops.push(end);dayHours+=hours;dayMiles+=miles;current=end;break;
      }
      const kind=leg===0?'break':'rest';
-     status.innerHTML='<span class="spinner"></span>Day '+dayIndex+': finding '+(kind==='break'?'break/fuel':'overnight')+' stop near 250 miles…';
-     const stop=await selectTruckStop(current,deliveryStop,kind,val('network'),Math.min(maxHours-dayHours,leg===0?7.75-dayHours:7.75),avgSpeed);
+     status.innerHTML='<span class="spinner"></span>Day '+dayIndex+': finding '+(kind==='break'?'break/fuel':'overnight')+' stop within the available clock…';
+     const stop=await selectTruckStop(current,deliveryStop,kind,val('network'),Math.min(maxHours-dayHours,leg===0?7.75-dayHours:7.75),avgSpeed,dayIndex===1&&leg===0&&document.getElementById('require300').checked);
      entries.push(stop);stops.push(stop);dayHours+=stop.driveHours;dayMiles+=stop.miles;current=stop;
      remaining=await routeThrough([current,deliveryStop]);
    }
@@ -313,7 +313,7 @@ async function buildGenericPlan(){
  });
  const late=clock&&appointment&&clock>new Date(appointment);
  status.innerHTML='<span class="'+(late?'warn':'ok')+'"><b>'+ (late?'APPOINTMENT AT RISK — REVIEW WITH DISPATCH.':'CURRENT TRIP BUILT — VERIFY STOPS BEFORE DISPATCH.')+'</b></span>';
- gen.innerHTML=`<h2>Professional Driver Trip Plan</h2><div class="meta">Trip ${esc(trip)} • ${esc(val('driver'))} • Truck ${esc(val('truck'))} • Trailer ${esc(val('trailer'))}</div><div class="summary"><div class="metric">Truck-route distance<b>${totalMiles.toFixed(1)} mi</b></div><div class="metric">Drive estimate<b>${totalHours.toFixed(1)} hr</b></div><div class="metric">Drive days<b>${days.length}</b></div><div class="metric">Leg target<b>250 mi</b></div></div><div class="notice small"><b>Strategy:</b> 200–300 truck-route miles per leg; one 30-minute break/fuel stop then overnight rest. Short delivery legs and available hours may shorten a leg.<br><b>Fuel network:</b> ${esc(val('network'))}<br><b>Company highways:</b> ${esc(val('notes'))}<br><b>Schedule:</b> Estimates include planned driving, 30-minute breaks and 10-hour overnight rests. Add loading, inspections, fuel service, traffic and other duty time; confirm appointment timezones and actual ELD hours. Highway notes do not force the routing corridor. Confirm it against dispatch. Parking availability is not guaranteed.${late?'<br><b>Delivery estimate is later than the appointment.</b>':''}</div>${wholeTripNavBlock()}${dayHtml}`;
+ gen.innerHTML=`<h2>Professional Driver Trip Plan</h2><div class="meta">Trip ${esc(trip)} • ${esc(val('driver'))} • Truck ${esc(val('truck'))} • Trailer ${esc(val('trailer'))}</div><div class="summary"><div class="metric">Truck-route distance<b>${totalMiles.toFixed(1)} mi</b></div><div class="metric">Drive estimate<b>${totalHours.toFixed(1)} hr</b></div><div class="metric">Drive days<b>${days.length}</b></div><div class="metric">First break target<b>300 mi</b></div></div><div class="notice small"><b>Strategy:</b> First break/fuel near 300 truck-route miles, then overnight or delivery within remaining daily drive hours. Short delivery legs and available hours may shorten a leg. ${document.getElementById('require300').checked?'First stop after pickup: minimum 300 miles required.':'First break is a flexible target.'}<br><b>Fuel network:</b> ${esc(val('network'))}<br><b>Company highways:</b> ${esc(val('notes'))}<br><b>Schedule:</b> Estimates include planned driving, 30-minute breaks and 10-hour overnight rests. Add loading, inspections, fuel service, traffic and other duty time; confirm appointment timezones and actual ELD hours. Highway notes do not force the routing corridor. Confirm it against dispatch. Parking availability is not guaranteed.${late?'<br><b>Delivery estimate is later than the appointment.</b>':''}</div>${wholeTripNavBlock()}${dayHtml}`;
  refreshStopVerification();document.getElementById('plan').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -365,7 +365,7 @@ async function build127532(){
 
 function matchesSavedMilwaukeeTrip(){
  const norm=s=>s.toLowerCase().replace(/[^a-z0-9]/g,'');
- return val('trip')==='127532' && norm(val('pickup'))===norm('4041 N Richards St, Milwaukee, WI 53212') && norm(val('delivery'))===norm('2224 W 500 N, Springville, UT 84663') && val('deliveryTime')==='2026-10-12T08:00' && (!val('departureTime')||val('departureTime').startsWith('2026-10-09'));
+ return !document.getElementById('require300').checked && val('trip')==='127532' && norm(val('pickup'))===norm('4041 N Richards St, Milwaukee, WI 53212') && norm(val('delivery'))===norm('2224 W 500 N, Springville, UT 84663') && val('deliveryTime')==='2026-10-12T08:00' && (!val('departureTime')||val('departureTime').startsWith('2026-10-09'));
 }
 
 async function buildPlan(){
