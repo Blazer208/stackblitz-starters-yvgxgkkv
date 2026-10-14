@@ -120,9 +120,14 @@ function googleWholeTripUrl(stops){
 }
 function appleWholeTripUrl(stops){
  if(!stops||stops.length<2)return "#";
- const d=stops[stops.length-1];
- return `https://maps.apple.com/?daddr=${encodeURIComponent(navValue(d))}&dirflg=d`;
+ // Apple Maps web links support one destination, not a guaranteed multi-stop itinerary.
+ return appleStopUrl(stops[stops.length-1]);
 }
+function appleStopUrl(stop){return 'https://maps.apple.com/?daddr='+encodeURIComponent(navValue(stop))+'&dirflg=d';}
+function appleLegLinks(stops){
+ return stops.slice(1).map((s,i)=>'<a class="btn secondary" target="_blank" rel="noopener" href="'+esc(appleStopUrl(s))+'">Apple Maps — Stop '+(i+2)+': '+esc(s.name||s.address)+'</a>').join('');
+}
+
 
 let confirmedStops=new Set(),verifiedTripSignature='';
 function tripSignature(){return JSON.stringify(lastPlanStops.map(s=>[s.name,s.address,s.lat,s.lng,s.truckEntrance||'']));}
@@ -160,9 +165,9 @@ function renderNavigationLinks(){
  const hammerQrs=hammerSegments.map((s,i)=>`<div class="qr"><img alt="Hammer leg ${i+1} QR code" src="${qrUrl(s.url)}"><b>Hammer Leg ${i+1} QR</b></div>`).join('');
  const hammerDetails=hammerSegments.map((s,i)=>`<div class="meta">Leg ${i+1}: ${esc(s.from)} → ${esc(s.to)} (${s.count} locations)</div>`).join('');
  return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip ${esc(val("trip")||"UNNUMBERED")}</span></div>
- <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a><a class="btn secondary" href="${truckerPathUrl(lastPlanStops)}">Open in Trucker Path (verify stops)</a>${hammerActions}<button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
+ <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a>${appleLegLinks(lastPlanStops)}<a class="btn secondary" href="${truckerPathUrl(lastPlanStops)}">Open in Trucker Path (verify stops)</a>${hammerActions}<button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
  <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div><div class="qr"><img src="${qrUrl(truckerPathUrl(lastPlanStops))}"><b>Trucker Path QR</b></div>${hammerQrs}</div>
- <div class="notice small"><b>Hammer:</b> Each linked leg supports up to five waypoints. Open legs in numbered order. This plan has ${lastPlanStops.length} locations, including addresses without GPS coordinates. ${hammerDetails} Verify all locations and your truck settings in Hammer before starting. <b>Apple Maps:</b> Each stop also has a separate Apple Maps handoff below; the Apple delivery button does not include intermediate stops.</div></div>`;
+ <div class="notice small"><b>Hammer:</b> Each linked leg supports up to five waypoints. Open legs in numbered order. This plan has ${lastPlanStops.length} locations, including addresses without GPS coordinates. ${hammerDetails} Verify all locations and your truck settings in Hammer before starting. <b>Apple Maps:</b> Apple Maps web links cannot reliably import all intermediate stops. Use the individual Stop links in order; they are not one multi-stop route. Confirm destination name, entrance, and truck restrictions in your truck navigation app.</div></div>`;
 }
 async function fetchTimed(url,options={}){
  const r=await fetch(url,{...options,signal:AbortSignal.timeout(30000)});return r;
