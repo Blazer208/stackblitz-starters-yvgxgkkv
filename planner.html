@@ -368,6 +368,32 @@ function matchesSavedMilwaukeeTrip(){
  return !document.getElementById('require300').checked && val('trip')==='127532' && norm(val('pickup'))===norm('4041 N Richards St, Milwaukee, WI 53212') && norm(val('delivery'))===norm('2224 W 500 N, Springville, UT 84663') && val('deliveryTime')==='2026-10-12T08:00' && (!val('departureTime')||val('departureTime').startsWith('2026-10-09'));
 }
 
+async function buildPreliminaryPlan(){
+ const status=document.getElementById('status'),gen=document.getElementById('generated');
+ const pickupAddress=val('pickup'),deliveryAddress=val('delivery');
+ if(!pickupAddress||!deliveryAddress)throw new Error('Pickup and delivery addresses are required.');
+ status.innerHTML='<span class="spinner"></span>Building preliminary mileage and day targets…';
+ const pickup=await geocode(pickupAddress),delivery=await geocode(deliveryAddress);
+ if(!pickup||!delivery)throw new Error('Could not locate pickup or delivery for preliminary plan.');
+ const route=await routeThrough([pickup,delivery]);
+ const miles=route.distance/1609.344,hours=legDriveHours(route,Number(val('avgSpeed')));
+ const daily=Number(val('maxHours')),cycle=Number(val('cycle'));
+ if(!Number.isFinite(daily)||daily<=0||!Number.isFinite(cycle)||cycle<=0)throw new Error('Enter valid daily and cycle hours.');
+ const count=Math.ceil(hours/daily);
+ if(count>16)throw new Error('Trip exceeds the 16-day planning limit.');
+ if(hours>cycle)throw new Error('Estimated drive time exceeds available cycle hours. Dispatcher must plan a reset or recap.');
+ const blocks=Array.from({length:count},(_,i)=>{
+   const h=Math.min(daily,Math.max(0,hours-i*daily));
+   const m=(hours>0?miles*h/hours:0);
+   return '<div class="day"><h3>DAY '+(i+1)+(i===count-1?' — DELIVERY TARGET':'')+'</h3><div class="meta">Approx. '+m.toFixed(0)+' miles • '+h.toFixed(1)+' drive hours</div><div class="notice small">Break/fuel and overnight stops: NOT SELECTED. Dispatcher must choose approved stops on the verified truck corridor, confirm 30-minute breaks before the 8-hour driving limit, HOS, and available parking.</div></div>';
+ }).join('');
+ lastOrigin={name:'Pickup',address:pickupAddress,lat:pickup.lat,lng:pickup.lng};
+ lastDest={name:'Delivery',address:deliveryAddress,lat:delivery.lat,lng:delivery.lng};
+ lastPlanStops=[lastOrigin,lastDest];lastRoute=route;
+ status.innerHTML='<span class="warn"><b>PRELIMINARY PLAN ONLY — STOP SELECTION UNAVAILABLE. NOT READY FOR DISPATCH.</b></span>';
+ gen.innerHTML='<h2>Preliminary Driver Trip Plan — Unverified Stops</h2><div class="meta">Trip '+esc(val('trip')||'UNNUMBERED')+'</div><div class="summary"><div class="metric">Estimated truck-route miles<b>'+miles.toFixed(1)+'</b></div><div class="metric">Estimated driving<b>'+hours.toFixed(1)+' hr</b></div><div class="metric">Target drive days<b>'+count+'</b></div></div><div class="notice small"><b>Required review:</b> No fuel, break, or overnight locations have been assigned. Approved fuel network: '+esc(val('network'))+'. Company highways: '+esc(val('notes'))+'. Imported highway notes are not enforced by the routing engine. Day targets are estimates, not verified leg distances. Confirm company-approved truck route, addresses, stops, ELD/HOS, weather, and delivery appointment before use. '+(document.getElementById('require300').checked?'The 300-mile first-stop minimum has NOT been verified.':'The first-break mileage target has NOT been verified.')+'</div>'+blocks;
+ document.getElementById('plan').scrollIntoView({behavior:'smooth',block:'start'});
+}
 async function buildPlan(){
  const btn=document.getElementById("generateBtn");
  if(btn.disabled)return;
@@ -383,7 +409,7 @@ async function buildPlan(){
    const timing=document.createElement("div");timing.className="notice small";
    timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
    document.getElementById("generated").prepend(timing);
- }catch(e){document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>'}
+ }catch(e){if(/Automatic truck-stop selection is unavailable with the current provider access|licensed Trimble POIs Along the Route key/i.test(e.message)){try{await buildPreliminaryPlan();}catch(f){document.getElementById("status").innerHTML='<span class="error"><b>Could not build preliminary route:</b> '+esc(f.message)+'</span>';}}else{document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>';}}
  finally{controls.forEach((c,i)=>c.disabled=previousDisabled[i]);btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
 
