@@ -56,6 +56,43 @@ async function truckStops(req,res){
     stopCache.set(cacheKey,{at:Date.now(),value});return json(res,200,value);
   }catch(e){return json(res,502,{error:'Truck-stop search unavailable; retry or contact dispatcher'});}
 }
+
+// Public OpenStreetMap candidate discovery; every selected leg must still pass PC*Miler truck routing.
+const osmStopCache=new Map();
+async function osmTruckStops(req,res){
+ if(req.method!=='POST')return json(res,405,{error:'Use POST'});
+ try{
+  let raw='';for await(const part of req){raw+=part;if(raw.length>4096)return json(res,413,{error:'Request too large'});}
+  const {points,kind='break',network='Pilot / Flying J only'}=JSON.parse(raw);
+  if(!Array.isArray(points)||points.length!==2||points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)||Math.abs(p.lat)>90||Math.abs(p.lng)>180)||!['break','rest'].includes(kind))return json(res,400,{error:'Invalid search'});
+  const key=JSON.stringify([points,kind,network]);const hit=osmStopCache.get(key);
+  if(hit&&Date.now()-hit.at<1800000)return json(res,200,hit.value);
+  const [a,b]=points;const distance=Math.hypot((a.lat-b.lat)*69,(a.lng-b.lng)*69*Math.cos(a.lat*Math.PI/180));
+  const samples=Math.min(12,Math.max(4,Math.ceil(distance/30)));
+  const clauses=[];
+  for(let i=0;i<=samples;i++){
+   const t=i/samples,lat=a.lat+(b.lat-a.lat)*t,lng=a.lng+(b.lng-a.lng)*t;
+   clauses.push('nwr(around:25000,'+lat.toFixed(5)+','+lng.toFixed(5)+')[~"^(name|brand|operator)$"~"(?i)(pilot|flying j|love.s|one9|petro|travelcenters of america|little america)"];');
+  }
+  const query='[out:json][timeout:24];('+clauses.join('')+');out center tags 150;';
+  const upstream=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'RouteStride/1.0 (truck stop discovery)'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(28000)});
+  if(!upstream.ok)return json(res,503,{error:'Public truck-stop directory is temporarily unavailable'});
+  const data=await upstream.json();const seen=new Set();
+  const stops=(data.elements||[]).map(e=>{
+   const tags=e.tags||{},name=tags.name||tags.brand||tags.operator||'';
+   const lat=e.lat??e.center?.lat,lng=e.lon??e.center?.lon;
+   const street=[tags['addr:housenumber'],tags['addr:street']].filter(Boolean).join(' ');
+   const address=[street,tags['addr:city'],tags['addr:state'],tags['addr:postcode']].filter(Boolean).join(', ');
+   const brand=brandOf(name);
+   return {name,brand,address,lat,lng,street,source:'OpenStreetMap — unverified'};
+  }).filter(p=>p.street&&p.address&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&allowedBrand(p.brand,kind,network)&&!seen.has(p.lat+','+p.lng)&&seen.add(p.lat+','+p.lng));
+  stops.sort((x,y)=>Math.hypot(x.lat-a.lat,x.lng-a.lng)-Math.hypot(y.lat-a.lat,y.lng-a.lng));
+  const value={stops:stops.slice(0,90),provider:'OpenStreetMap — candidate locations, truck route verification required'};
+  if(osmStopCache.size>60)osmStopCache.delete(osmStopCache.keys().next().value);
+  osmStopCache.set(key,{at:Date.now(),value});return json(res,200,value);
+ }catch(e){console.error('Public stop lookup failed',String(e.message).slice(0,120));return json(res,503,{error:'Public truck-stop directory unavailable; use dispatcher-selected stops'});}
+}
+
 async function truckRoute(req, res) {
   if (req.method !== 'POST') return json(res,405,{error:'Use POST'});
   const key = process.env.TRIMBLE_API_KEY;
@@ -111,7 +148,7 @@ const server = http.createServer(async (req, res) => {
   if(req.url?.startsWith('/api/auth/')||req.url?.startsWith('/login')||req.url?.startsWith('/signup'))res.setHeader('Cache-Control','no-store');
   let urlPath;try{urlPath=decodeURIComponent((req.url||'/').split('?')[0]);}catch(e){return json(res,400,{error:'Invalid URL'});}
   try{if(await auth.handle(req,res,urlPath))return;}catch(e){return json(res,503,{error:'Account service unavailable'});}
-  if(urlPath==='/api/truck-route'||urlPath==='/api/truck-stops'){
+  if(urlPath==='/api/truck-route'||urlPath==='/api/truck-stops'||urlPath==='/api/osm-truck-stops'){
     const user=auth.userFor(req);if(!user)return json(res,401,{error:'Sign in required'});
     if(req.method==='POST'&&!auth.sameOrigin(req))return json(res,403,{error:'Invalid request origin'});
     if(!auth.limit('routing:'+user.id,100,3600000))return json(res,429,{error:'Your hourly planning limit has been reached. Try later.'});
@@ -119,6 +156,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (urlPath === '/api/truck-route') return truckRoute(req,res);
   if (urlPath === '/api/truck-stops') return truckStops(req,res);
+  if (urlPath === '/api/osm-truck-stops') return osmTruckStops(req,res);
   if (urlPath.startsWith('/api/')) return json(res,404,{error:'Unknown API endpoint'});
   const requested = urlPath === '/' ? '/index.html' : urlPath;
   if(requested==='/login.html'||requested==='/signup.html')res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'");
