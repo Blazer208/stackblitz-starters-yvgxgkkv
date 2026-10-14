@@ -235,14 +235,21 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    return stop;
  }
  const r=await fetchTimed('/api/truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),profile:truckProfile(),kind,network,minMiles,maxMiles})});
- const j=await r.json();if(!r.ok)throw new Error(r.status===503?'Automatic truck-stop selection is unavailable with the current provider access. New multi-day plans cannot be generated yet.':j.error||'Truck-stop search failed');
- const candidates=(j.stops||[]).filter(p=>p.miles>=minMiles&&p.miles<=maxMiles).sort((a,b)=>Math.abs(a.miles-targetMiles)-Math.abs(b.miles-targetMiles));
- for(const stop of candidates.slice(0,3)){
-   const route=await routeThrough([origin,stop]);
+ const j=await r.json();
+ let candidates=[],publicDirectory=false;
+ if(r.status===503){
+   const fallback=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
+   const f=await fallback.json();
+   if(!fallback.ok)throw new Error('Automatic truck-stop directories unavailable. Enter dispatcher-selected stop addresses or generate a preliminary plan.');
+   candidates=f.stops||[];publicDirectory=true;
+ }else if(!r.ok)throw new Error(j.error||'Truck-stop search failed');
+ else candidates=(j.stops||[]).filter(p=>p.miles>=minMiles&&p.miles<=maxMiles).sort((a,b)=>Math.abs(a.miles-targetMiles)-Math.abs(b.miles-targetMiles));
+ for(const stop of candidates.slice(0,publicDirectory?24:3)){
+   let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
-   if(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)return {...stop,kind,miles,driveHours:hours};
+   if(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)return {...stop,kind,miles,driveHours:hours,source:publicDirectory?'OpenStreetMap candidate — verify address and truck entrance':stop.source};
  }
- throw new Error('No approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' truck-route miles and the available hours. Dispatcher must review this leg.');
+ throw new Error('No verified approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' truck-route miles and available hours. Enter dispatcher-selected stops or use a preliminary plan.');
 }
 async function buildGenericPlan(){
  const status=document.getElementById('status'),gen=document.getElementById('generated');
@@ -409,7 +416,7 @@ async function buildPlan(){
    const timing=document.createElement("div");timing.className="notice small";
    timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
    document.getElementById("generated").prepend(timing);
- }catch(e){if(/Automatic truck-stop selection is unavailable with the current provider access|licensed Trimble POIs Along the Route key/i.test(e.message)){try{await buildPreliminaryPlan();}catch(f){document.getElementById("status").innerHTML='<span class="error"><b>Could not build preliminary route:</b> '+esc(f.message)+'</span>';}}else{document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>';}}
+ }catch(e){if(/Automatic truck-stop selection is unavailable with the current provider access|licensed Trimble POIs Along the Route key|Automatic truck-stop directories unavailable|No verified approved/i.test(e.message)){try{await buildPreliminaryPlan();}catch(f){document.getElementById("status").innerHTML='<span class="error"><b>Could not build preliminary route:</b> '+esc(f.message)+'</span>';}}else{document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>';}}
  finally{controls.forEach((c,i)=>c.disabled=previousDisabled[i]);btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
 
