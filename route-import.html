@@ -13,23 +13,32 @@
 const $=id=>document.getElementById(id);
 function clean(v){return (v||"").replace(/\s+/g," ").trim()}
 function parseRoute(){
- const raw=$("raw").value, s=raw.replace(/\r/g,"");
- let header=s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)\s*:\s*\d+\s*Stop/i);
- if(!header) header=s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)(?:\n|Miles\s*:)/i);
+ const s=$("raw").value.replace(/\r/g,"");
+ const header=s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)\s*:\s*\d+\s*Stops?\b/i)
+   ||s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)(?:\n|Miles\s*:)/i);
  if(header){$("origin").value=clean(header[1]);$("destination").value=clean(header[2]);}
- const miles=s.match(/Miles\s*:\s*([\d,]+(?:\.\d+)?)/i);if(miles)$("miles").value=miles[1];
- const stop=s.match(/Stop\s*1\s*:\s*(.+?)(?:\s+0:00|\n)/i);if(stop)$("stop").value=clean(stop[1]);
- // Route rows start with a state abbreviation and direction. Only read the route column;
- // avoid toll/interchange commentary and collapse consecutive repeated highways.
- const roads=[];let inRows=false;
+ const miles=s.match(/\bMiles\s*:\s*([\d,]+(?:\.\d+)?)/i);if(miles)$("miles").value=miles[1];
+ const stop=s.match(/^\s*Stop\s*1\s*:\s*(.+?)(?=\s{2,}\d+:\d{2}\b|\s*\(On-Duty\)|$)/im);
+ if(stop)$("stop").value=clean(stop[1]);
+ const roads=[];let rowCount=0;
+ // Read ONLY the actual PC*MILER Route column; do not mistake interchange roads for travelled roads.
+ const row=/^\s*([A-Z]{2})\s+(?:(?:\$)\s+)?(Keep\s+(?:right|left)|North|South|East|West|Right|Left|Straight|Turn around)\s+(.+?)\s{2,}(\d+(?:\.\d+)?)\s+\d+:\d{2}\s+/i;
  for(const line of s.split("\n")){
-  if(/State\/\s*Country|Interchange/i.test(line))inRows=true;
-  if(!inRows)continue;
-  const m=line.match(/^\s*[A-Z]{2}\s+(?:Keep\s+(?:right|left)|North|South|East|West|Right|Left)\s+(I[- ]?\d+(?:[- ]?(?:Business|Bus))?|US[- ]?\d+|MT[- ]?\d+|SD[- ]?\d+|WI[- ]?\d+|ID[- ]?\d+|WY[- ]?\d+|MN[- ]?\d+)/i);
-  if(m){const road=clean(m[1]).replace(/^(I|US|MT|SD|WI|ID|WY|MN)\s+/i,"$1-");if(roads[roads.length-1]!==road) roads.push(road);}
+  const m=line.match(row);if(!m)continue;
+  rowCount++;
+  const roadText=clean(m[3]);
+  // Ignore ramps, local roads and exits in the condensed highway overview.
+  const highway=roadText.match(/^(I|US|ID|MT|WY|SD|MN|WI)[- ](\d+)(?:\s+(Business|Bus))?\b/i);
+  if(!highway)continue;
+  const name=highway[1].toUpperCase()+"-"+highway[2]+(highway[3]?" Business":"");
+  if(roads[roads.length-1]!==name)roads.push(name);
  }
  $("roads").value=roads.join(" → ");
- $("status").textContent=roads.length?"Extracted "+roads.length+" highway sections. Check all fields before transfer.":"Text read, but no road sequence was confidently detected. Enter highways manually or try a clearer scan.";
+ $("reviewed").checked=false;
+ $("status").textContent=roads.length
+  ?"Extracted "+roads.length+" ordered highway sections from "+rowCount+" PC*MILER road rows. Confirm all roads, stops and truck restrictions before transfer."
+  :rowCount?"Read "+rowCount+" road rows, but no highway names were recognized. Check the editable extracted text."
+  :"PDF text was extracted, but PC*MILER road rows were not recognized. Review the text below or enter highways manually.";
 }
 
 const loadFields=["trip","driver","truck","trailer","pickup","delivery","pickupTime","deliveryTime","departureTime","weight","commodity","reefer"];
@@ -75,17 +84,37 @@ function parseLoadCard(){
 }
 async function readSheet(file,statusId){
  if(file.type==="application/pdf"||/\.pdf$/i.test(file.name)){
-  $(statusId).textContent="Reading PDF pages…";
+  $(statusId).textContent="Reading PDF pages and reconstructing route rows…";
   const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.mjs";
   const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
   let text="";
   for(let p=1;p<=Math.min(pdf.numPages,12);p++){
-   const page=await pdf.getPage(p),items=await page.getTextContent();
-   for(const item of items.items){text+=item.str+(item.hasEOL?"\n":" ");}
+   const page=await pdf.getPage(p),content=await page.getTextContent();
+   const lines=[];
+   // PDF.js text items can be fragmented or have no EOL; group by actual page Y position.
+   for(const item of content.items){
+    if(!item.str||!item.str.trim()||!item.transform)continue;
+    const x=item.transform[4],y=item.transform[5];
+    let line=lines.find(l=>Math.abs(l.y-y)<2.5);
+    if(!line){line={y,parts:[]};lines.push(line);}
+    line.parts.push({x,str:item.str});
+   }
+   lines.sort((a,b)=>b.y-a.y);
+   for(const line of lines){
+    line.parts.sort((a,b)=>a.x-b.x);
+    // Preserve column boundaries as multiple spaces for PC*MILER table parsing.
+    let out="",lastEnd=null;
+    for(const part of line.parts){
+     const width=Math.max(0,part.str.length*3.5);
+     if(lastEnd!==null){const gap=part.x-lastEnd;out+=gap>9?"   ":" ";}
+     out+=part.str;lastEnd=part.x+width;
+    }
+    text+=out.trimEnd()+"\n";
+   }
    text+="\n";
   }
-  if(text.trim().length<60)throw Error("Scanned PDF: upload a clear photo of the page.");
+  if(text.trim().length<60)throw Error("No selectable PDF text detected. Upload a clear image instead.");
   return text;
  }
  $(statusId).textContent="Reading image text on your device…";
@@ -95,6 +124,7 @@ async function readSheet(file,statusId){
  }
  return (await Tesseract.recognize(file,"eng")).data.text||"";
 }
+
 $("scanLoad").onclick=async()=>{
  const file=$("loadUpload").files[0];if(!file){$("loadStatus").textContent="Choose a load card first.";return;}
  $("scanLoad").disabled=true;$("scan").disabled=true;
@@ -109,28 +139,12 @@ document.querySelectorAll('input:not(#reviewed),textarea').forEach(el=>el.addEve
 $("reparse").onclick=parseRoute;
 $("scan").onclick=async()=>{
  const file=$("upload").files[0];if(!file){$("status").textContent="Choose a photo or PDF first.";return;}
- $("scan").disabled=true;
- try{
-  let text="";
-  if(file.type==="application/pdf"||/\.pdf$/i.test(file.name)){
-   $("status").textContent="Reading PDF pages…";
-   const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs");
-   pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.mjs";
-   const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
-   for(let p=1;p<=Math.min(pdf.numPages,12);p++){const page=await pdf.getPage(p), items=await page.getTextContent();text+=items.items.map(x=>x.str).join(" ")+"\n";}
-   if(text.trim().length<60)throw Error("This PDF appears scanned. Save its pages as images and upload a clear photo.");
-  }else{
-   $("status").textContent="Reading image text on your device. This may take a moment…";
-   if(!window.Tesseract){
-    const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-    await new Promise((res,rej)=>{script.onload=res;script.onerror=()=>rej(Error("Image reader could not load."));document.head.appendChild(script);});
-   }
-   const result=await Tesseract.recognize(file,"eng");text=result.data.text||"";
-  }
-  $("raw").value=text;parseRoute();
- }catch(e){$("status").textContent="Could not read this file: "+e.message+" You can paste text into the review box.";}
- finally{$("scan").disabled=false;}
+ $("scan").disabled=true;$("scanLoad").disabled=true;
+ try{$("raw").value=await readSheet(file,"status");parseRoute();}
+ catch(e){$("status").textContent="Could not read this file: "+e.message+" You can paste text into the review box.";}
+ finally{$("scan").disabled=false;$("scanLoad").disabled=false;}
 };
+
 $("transfer").onclick=()=>{
  if(!$("reviewed").checked){alert("Review the route and tick the confirmation first.");return;}
  if(!($("load_pickup").value.trim()||$("origin").value.trim())||!($("load_delivery").value.trim()||$("destination").value.trim())){alert("Origin and destination are required.");return;}
