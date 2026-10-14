@@ -98,7 +98,7 @@ async function truckRoute(req, res) {
     return json(res,200,result);
   } catch(e) { return json(res,502,{error:'Truck routing unavailable; retry or contact dispatcher'}); }
 }
-const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js']);
+const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js','/historical-awareness.html']);
 const protectedFiles=new Set(['/planner.html','/route-import.html','/Route_Stride_Demo.html']);
 const securityHeaders={
  'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
