@@ -28,7 +28,7 @@ function parseRoute(){
   rowCount++;
   const roadText=clean(m[3]);
   // Ignore ramps, local roads and exits in the condensed highway overview.
-  const highway=roadText.match(/^(I|US|ID|MT|WY|SD|MN|WI)[- ](\d+)(?:\s+(Business|Bus))?\b/i);
+  const highway=roadText.match(/^(I|US|ID|MT|WY|SD|MN|WI)\s*[-–—]\s*(\d+)(?:\s+(Business|Bus))?\b/i);
   if(!highway)continue;
   const name=highway[1].toUpperCase()+"-"+highway[2]+(highway[3]?" Business":"");
   if(roads[roads.length-1]!==name)roads.push(name);
