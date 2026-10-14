@@ -337,7 +337,7 @@ const trip127532Stops=[
  {kind:"rest",day:"SAT",name:"Love's Travel Stop #625",address:"645 Chase Blvd, Sidney, NE 69162",lat:41.1093776,lng:-102.9526677},
  {kind:"break",day:"SUN",name:"Flying J Travel Center #764",address:"650 Stagecoach Blvd, Rock Springs, WY 82901",lat:41.6090307,lng:-109.2305669},
  {kind:"rest",day:"SUN",name:"Pilot Travel Center #747",address:"1460 N 1750 W, Springville, UT 84663",lat:40.1875538,lng:-111.6415642},
- {kind:"delivery",day:"MON",name:"CANDYCO",address:"2224 W 500 N, Springville, UT 84663",lat:null,lng:null}
+ {kind:"delivery",day:"MON",name:"CANDYCO",address:"2224 W 500 N, Springville, UT 84663",lat:40.175500,lng:-111.654139,truckEntrance:"",pinNote:"Customer-supplied delivery pin; truck entrance not verified"}
 ];
 
 async function build127532(){
@@ -349,8 +349,8 @@ async function build127532(){
  if(!yardGeo)throw new Error("Could not locate starting yard: "+val("yard"));
  const yardStop={name:"Starting yard",address:val("yard"),lat:yardGeo.lat,lng:yardGeo.lng};
  stops[0].address=val("pickup"); if(pickupGeo){stops[0].lat=pickupGeo.lat;stops[0].lng=pickupGeo.lng}
- stops[7].address=val("delivery"); if(deliveryGeo){stops[7].lat=deliveryGeo.lat;stops[7].lng=deliveryGeo.lng}
- lastPlanStops=[yardStop,...stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng}))];
+ stops[7].address=val("delivery"); if(!/springville/i.test(val("delivery"))){if(deliveryGeo){stops[7].lat=deliveryGeo.lat;stops[7].lng=deliveryGeo.lng;}else{stops[7].lat=null;stops[7].lng=null;}}
+ lastPlanStops=[yardStop,...stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng,truckEntrance:s.truckEntrance||"",pinNote:s.pinNote||""}))];
  lastOrigin=lastPlanStops[0]; lastDest=lastPlanStops[lastPlanStops.length-1];
  try{lastRoute=await routeThrough(lastPlanStops)}catch(e){lastRoute=null;throw e}
  const fri=stopCard(yardStop,"DEPART YARD","Drive from the yard to PHOENIX before pickup.")+stopCard(stops[0],"PICKUP","Friday, Oct 9 at 1:30 PM Central • 44 pallets • 41,127 lb.")
