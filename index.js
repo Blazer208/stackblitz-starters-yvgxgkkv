@@ -141,7 +141,7 @@ const securityHeaders={
  'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
  'Strict-Transport-Security':'max-age=31536000',
  'Permissions-Policy':'camera=(), microphone=(), geolocation=()',
- 'Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://api.qrserver.com; frame-src https://www.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+ 'Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://api.qrserver.com https://*.tile.openstreetmap.org https://unpkg.com; frame-src https://www.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 };
 const server = http.createServer(async (req, res) => {
   for(const [key,value]of Object.entries(securityHeaders))res.setHeader(key,value);
