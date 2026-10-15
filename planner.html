@@ -19,6 +19,29 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 .spinner{display:inline-block;width:18px;height:18px;border:3px solid #ffffff55;border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;vertical-align:-4px;margin-right:8px}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:820px){.grid,.grid3,.grid4,.summary{grid-template-columns:1fr}.wrap{padding:10px}}
 @media print{body{background:white;color:black}.form-card,.no-print{display:none!important}.card,.day,.metric{background:white;color:black;border-color:#bbb}.muted,.meta,.sub,label{color:#444}.qrrow,.btn{display:none}}
+
+#printReport{display:none}
+@media print{
+ @page{size:landscape;margin:9mm}
+ body{background:#fff!important;color:#102342!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ .wrap{display:none!important}#printReport{display:block!important;font:10px/1.35 Arial,sans-serif;color:#102342}
+ .prHead{background:#0b2143;color:white;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+ .prHead h1{font-size:24px;margin:0;color:white}.prHead .prSub{font-size:11px}
+ .prStats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:9px 0}
+ .prStat{background:#eaf3fb;border:1px solid #b6cde5;border-radius:6px;padding:7px;font-size:11px}.prStat b{display:block;font-size:16px}
+ .prLayout{display:grid;grid-template-columns:62% 38%;gap:10px}
+ .prDay{break-inside:avoid;border:1px solid #c3d5e7;border-radius:7px;margin-bottom:7px;overflow:hidden}
+ .prDay h3{background:#0d3972;color:white;margin:0;padding:5px 8px;font-size:12px}
+ .prStop{display:grid;grid-template-columns:26px 1fr 65px;gap:7px;align-items:center;padding:5px 8px;border-top:1px solid #d8e5f0}
+ .prStop strong{font-size:11px}.prStop small{display:block;font-size:9px;color:#465c70}
+ .prQr{width:55px;height:55px;object-fit:contain}
+ .prSide{border:1px solid #c3d5e7;border-radius:7px;padding:10px;break-inside:avoid}
+ .prSide h3{font-size:13px;color:#0d3972;margin:6px 0}
+ .prSide .prCodes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+ .prSide .prCode{text-align:center;font-size:9px}.prSide .prCode img{width:68px;height:68px}
+ .prWarning{padding:7px;background:#fff2d7;border-left:4px solid #d88712;margin:8px 0;font-size:10px}
+ .prFooter{border-top:1px solid #aaa;padding-top:6px;font-size:9px}
+}
 </style>
 </head>
 <body>
@@ -60,7 +83,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   </div>
   <div class="actions">
    <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
-   <button class="btn secondary" type="button" onclick="window.print()">Print / Save PDF</button>
+   <button class="btn secondary" type="button" onclick="printProfessionalPlan()">Print / Save PDF</button>
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
   <div style="margin-top:12px"><label style="display:flex;gap:8px;align-items:center"><input id="require300" type="checkbox" style="width:auto">This load requires at least 300 truck-route miles before the first stop after pickup</label><div class="small muted">Use only when dispatch requires it. If the available clock cannot support the minimum, planning stops for dispatch review.</div></div>
@@ -73,6 +96,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <div id="generated"></div>
  </div>
 </div>
+<div id="printReport" aria-hidden="true"></div>
 
 <script src="stop-policy.js"></script>
 <script src="auth-ui.js" defer></script>
@@ -406,6 +430,28 @@ async function buildPreliminaryPlan(){
  gen.innerHTML='<h2>Preliminary Driver Trip Plan — Unverified Stops</h2><div class="meta">Trip '+esc(val('trip')||'UNNUMBERED')+'</div><div class="summary"><div class="metric">Estimated truck-route miles<b>'+miles.toFixed(1)+'</b></div><div class="metric">Estimated driving<b>'+hours.toFixed(1)+' hr</b></div><div class="metric">Target drive days<b>'+count+'</b></div></div><div class="notice small"><b>Required review:</b> No fuel, break, or overnight locations have been assigned. Approved fuel network: '+esc(val('network'))+'. Company highways: '+esc(val('notes'))+'. Imported highway notes are not enforced by the routing engine. Day targets are estimates, not verified leg distances. Confirm company-approved truck route, addresses, stops, ELD/HOS, weather, and delivery appointment before use. '+(document.getElementById('require300').checked?'The 300-mile first-stop minimum has NOT been verified.':'The first-break mileage target has NOT been verified.')+'</div>'+blocks+'<div class="day"><h3>PRELIMINARY PICKUP → DELIVERY MAP & QR</h3><div class="notice small"><b>Pickup and delivery only.</b> This navigation does NOT include required fuel, 30-minute break, or overnight stops. It is not a dispatch-ready truck route. Verify the truck-safe corridor and add approved stops before driving.</div><div class="actions no-print"><a class="btn secondary" target="_blank" rel="noopener" href="'+esc(googleWholeTripUrl(lastPlanStops))+'">Google Maps — endpoints only</a><a class="btn secondary" target="_blank" rel="noopener" href="'+esc(appleWholeTripUrl(lastPlanStops))+'">Apple Maps — endpoints only</a></div><div class="qr"><img alt="Pickup to delivery Google Maps QR code; no intermediate stops" src="'+qrUrl(googleWholeTripUrl(lastPlanStops))+'"><b>Google Maps QR — endpoints only</b></div><div class="qr"><img alt="Pickup to delivery Apple Maps QR code; no intermediate stops" src="'+qrUrl(appleWholeTripUrl(lastPlanStops))+'"><b>Apple Maps QR — endpoints only</b></div></div>';
  document.getElementById('plan').scrollIntoView({behavior:'smooth',block:'start'});
 }
+
+function printProfessionalPlan(){
+ if(!lastPlanStops.length||!document.getElementById('generated').textContent.trim()){
+  alert('Generate a trip plan before printing.');return;
+ }
+ const preliminary=/PRELIMINARY PLAN ONLY|Preliminary Driver Trip Plan/.test(document.getElementById('plan').textContent);
+ const safe=lastPlanStops.every(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+ const qr=(url,label)=>'<div class="prCode"><img src="'+esc(qrUrl(url))+'" alt="'+esc(label)+' QR"><div>'+esc(label)+'</div></div>';
+ const date=s=>s?new Date(s).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}):'Not entered';
+ const fmt=(p,i)=>'<div class="prStop"><b>'+(i+1)+'</b><div><strong>'+esc(p.name||'Stop')+'</strong><small>'+esc(p.address||'Address not verified')+'</small><small>'+esc(p.kind||'Waypoint')+(p.truckEntrance?' • Entrance: '+esc(p.truckEntrance):'')+'</small></div>'+(safe?'<img class="prQr" src="'+esc(qrUrl(googleUrl(p.lat,p.lng,p.address)))+'" alt="Stop QR">':'<small>Unverified</small>')+'</div>';
+ const stops=lastPlanStops;
+ const segments=[];let current=[];
+ stops.forEach((p,i)=>{current.push({p,i});if(p.kind==='rest'||p.kind==='delivery'||i===stops.length-1){segments.push(current);current=[];}});
+ const days=segments.map((arr,i)=>'<section class="prDay"><h3>DAY '+(i+1)+' — '+(arr[arr.length-1].p.kind==='delivery'?'DELIVERY':'BREAK / REST PLAN')+'</h3>'+arr.map(x=>fmt(x.p,x.i)).join('')+'</section>').join('');
+ const google=googleWholeTripUrl(stops),apple=appleWholeTripUrl(stops),trucker=truckerPathUrl(stops);
+ const report='<div class="prHead"><div><h1>ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN • TRIP '+esc(val('trip')||'UNNUMBERED')+'</div></div><div>Pickup: '+esc(date(val('departureTime')))+'<div>Delivery: '+esc(date(val('deliveryTime')))+'</div></div></div>'+
+ '<div class="prStats"><div class="prStat">Driver<b>'+esc(val('driver')||'Not assigned')+'</b></div><div class="prStat">Truck / Trailer<b>'+esc((val('truck')||'—')+' / '+(val('trailer')||'—'))+'</b></div><div class="prStat">Planned Stops<b>'+stops.length+'</b></div><div class="prStat">Fuel Network<b>'+esc(val('network'))+'</b></div></div>'+
+ '<div class="prLayout"><div>'+days+'</div><aside class="prSide"><h3>Route & Navigation</h3><div><b>Pickup:</b> '+esc(stops[0].address)+'</div><div><b>Delivery:</b> '+esc(stops[stops.length-1].address)+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY ONLY — intermediate stops not assigned. NOT DISPATCH READY.':'Confirm every truck entrance, fuel/rest stop, HOS and legal truck route before driving.')+'</div><h3>Navigation QR Codes</h3><div class="prCodes">'+qr(google,'Google Maps')+qr(apple,'Apple delivery only')+qr(trucker,'Trucker Path')+'</div><h3>Company Route / Highways</h3><div>'+esc(val('notes')||'Confirm with dispatch')+'</div><h3>Driving Strategy</h3><div>'+esc(val('strategy')||'Break before 8 hours; follow ELD/HOS')+'</div><h3>Garmin GPX</h3><div>Download separately using the Export Whole-Trip Garmin GPX button after verifying every stop. A QR code cannot install a GPX file on a Garmin device.</div><h3>Truck Safety</h3><div>Google and Apple Maps do not verify truck-safe corridors. Check low bridges, restrictions, dimensions, weight, parking and approved truck entrances in professional truck navigation.</div></aside></div><div class="prFooter">Generated from current Dispatch Pro stop data. Route visualization is not included; this report must not be mistaken for a validated truck navigation map.</div>';
+ document.getElementById('printReport').innerHTML=report;
+ window.print();
+}
+
 async function buildPlan(){
  const btn=document.getElementById("generateBtn");
  if(btn.disabled)return;
