@@ -102,7 +102,10 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 #printReport .prLiveMap{display:block;width:100%;height:320px;border:1px solid #b5cbe1;border-radius:8px;background:#e6eef2}
 #printReport .prPrintMap{display:none}
 @media print{#printReport .prLiveMap{display:none!important}#printReport .prPrintMap{display:block!important}}
+#printReport .prLiveMap{z-index:0}
+@media print{#printReport .prLiveMap{display:none!important}}
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
 <div class="wrap">
@@ -158,6 +161,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 </div>
 <div id="printReport" aria-hidden="true"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="stop-policy.js"></script>
 <script src="auth-ui.js" defer></script>
 <script>
@@ -491,6 +495,25 @@ async function buildPreliminaryPlan(){
  document.getElementById('plan').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
+
+function renderTripMapPins(coords){
+ const el=document.getElementById('prLeafletMap');
+ if(!el||!window.L||!coords.length)return;
+ if(window.dispatchPrintMap){window.dispatchPrintMap.remove();window.dispatchPrintMap=null;}
+ const map=L.map(el,{scrollWheelZoom:false});
+ window.dispatchPrintMap=map;
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:18}).addTo(map);
+ const bounds=[];
+ coords.forEach(p=>{
+  const icon=L.divIcon({className:'',html:'<span style="display:grid;place-items:center;width:26px;height:26px;border:2px solid white;border-radius:50%;background:#103b77;color:white;font-weight:bold;box-shadow:0 1px 5px #333">'+(p.i+1)+'</span>',iconSize:[26,26],iconAnchor:[13,13]});
+  L.marker([p.lat,p.lng],{icon}).addTo(map).bindPopup('<b>Stop '+(p.i+1)+'</b> '+esc(p.name||'Stop'));
+  bounds.push([p.lat,p.lng]);
+ });
+ if(bounds.length>1){map.fitBounds(bounds,{padding:[25,25]});}
+ else map.setView(bounds[0],10);
+ setTimeout(()=>map.invalidateSize(),200);
+}
+
 function printProfessionalPlan(){
  if(!lastPlanStops.length||!document.getElementById('generated').textContent.trim()){
   alert('Generate a trip plan before printing.');return;
@@ -511,7 +534,7 @@ function printProfessionalPlan(){
  }
  const bounds=coords.length>=2?{west:Math.min(...coords.map(p=>p.lng)),east:Math.max(...coords.map(p=>p.lng)),south:Math.min(...coords.map(p=>p.lat)),north:Math.max(...coords.map(p=>p.lat))}:null;
  const osm=bounds?'https://www.openstreetmap.org/export/embed.html?bbox='+encodeURIComponent([bounds.west-0.3,bounds.south-0.3,bounds.east+0.3,bounds.north+0.3].join(','))+'&layer=mapnik':'';
- const map='<div class="prMap"><div class="prMapTitle">GEOGRAPHIC TRIP OVERVIEW</div>'+(osm?'<iframe class="prLiveMap" title="OpenStreetMap geographic map showing the trip area" loading="lazy" referrerpolicy="no-referrer" src="'+esc(osm)+'"></iframe>':'')+'<div class="prPrintMap">'+diagram+'</div><div class="prMapCaption">Map shows the geographic trip area, not a plotted or validated truck-safe road route. The numbered schematic is used for print; check stop locations and road restrictions separately.</div><a href="'+esc(googleWholeTripUrl(stops))+'" target="_blank" rel="noopener">Open stops in Google Maps (verify truck restrictions)</a></div>';
+ const map='<div class="prMap"><div class="prMapTitle">GEOGRAPHIC TRIP OVERVIEW</div>'+(osm?'<div id="prLeafletMap" class="prLiveMap" role="img" aria-label="Geographic map with numbered trip stops"></div>':'')+'<div class="prPrintMap">'+diagram+'</div><div class="prMapCaption">Map shows the geographic trip area, not a plotted or validated truck-safe road route. The numbered schematic is used for print; check stop locations and road restrictions separately.</div><a href="'+esc(googleWholeTripUrl(stops))+'" target="_blank" rel="noopener">Open stops in Google Maps (verify truck restrictions)</a></div>';
  const metrics=document.querySelectorAll('#generated .summary .metric');
  const metric=(i)=>metrics[i]?metrics[i].textContent.trim():'Not available';
  const weight=val('weight')?val('weight')+' lb':'Not entered';
@@ -521,6 +544,7 @@ function printProfessionalPlan(){
  const preview=document.getElementById('printReport');
  preview.innerHTML='<div class="actions no-print" style="margin-bottom:14px"><button type="button" class="btn primary" onclick="window.print()">Print / Save as PDF</button><button type="button" class="btn secondary" onclick="document.getElementById(\'printReport\').classList.remove(\'previewOpen\')">Close Preview</button></div>'+report;
  preview.classList.add('previewOpen');
+ renderTripMapPins(coords);
  preview.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
