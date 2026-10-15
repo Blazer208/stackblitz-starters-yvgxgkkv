@@ -59,6 +59,46 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
  .prWarning{padding:7px;background:#fff2d7;border-left:4px solid #d88712;margin:8px 0;font-size:10px}
  .prFooter{border-top:1px solid #aaa;padding-top:6px;font-size:9px}
 }
+
+/* Approved Route Stride report-inspired dashboard */
+#printReport.previewOpen{max-width:1500px;padding:12px;font-family:Arial,sans-serif}
+#printReport .prHead{background:linear-gradient(110deg,#06264f,#0b3970 65%,#e8f5ff);border-bottom:4px solid #f0b73b;display:flex;align-items:center;justify-content:space-between;gap:16px}
+#printReport .prHead h1{font-size:30px;letter-spacing:-1px}
+#printReport .prSub{font-size:11px;letter-spacing:1px}
+#printReport .prStats{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+#printReport .prStat{background:#f5f9ff;border:1px solid #bdd0e5;border-radius:6px;font-size:11px}
+#printReport .prStat b{font-size:17px;color:#092756;margin-top:4px;overflow-wrap:anywhere}
+#printReport .prLayout{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+#printReport .prDay{border:1px solid #b5cbe1;border-radius:9px;overflow:hidden;padding:0}
+#printReport .prDay h3{background:linear-gradient(90deg,#092b5c,#1765a8);color:#fff;font-size:14px;margin:0;padding:8px 12px}
+#printReport .prStop{grid-template-columns:32px 1fr 80px;align-items:center;padding:9px 12px}
+#printReport .prStop> b{background:#102d62;color:#fff;border-radius:50%;width:27px;height:27px;display:grid;place-items:center}
+#printReport .prStop strong{font-size:13px;color:#102756}
+#printReport .prStop small{font-size:11px;line-height:1.5}
+#printReport .prQr{width:64px;height:64px}
+#printReport .prSide{padding:10px;border:0}
+#printReport .prSide h3{font-size:14px;background:#eaf2fb;padding:7px 9px;border-left:4px solid #1862a7}
+#printReport .prCodes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+#printReport .prCode{text-align:center;border:1px solid #d3e0ed;padding:6px;border-radius:7px}
+#printReport .prCode img{width:75px;height:75px;margin:auto}
+#printReport .prMap{border:1px solid #bed1e5;border-radius:9px;background:linear-gradient(145deg,#e5f3e9,#e7effa);padding:12px;margin-bottom:10px}
+#printReport .prMap svg{display:block;width:100%;height:210px}
+#printReport .prMapTitle{font-size:13px;font-weight:800;color:#103766;margin-bottom:5px}
+#printReport .prMapCaption{font-size:10px;color:#4b647d}
+#printReport .prWarning{background:#fff2d7;border-left:4px solid #d88712;padding:8px}
+@media(max-width:700px){#printReport .prStats{grid-template-columns:repeat(2,minmax(0,1fr))}#printReport .prLayout{grid-template-columns:1fr}}
+@media print{
+ #printReport .prStats{grid-template-columns:repeat(5,minmax(0,1fr))}
+ #printReport .prLayout{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+ #printReport .prHead{background:#0b2d60!important;color:#fff!important}
+ #printReport .prHead h1{font-size:23px}
+ #printReport .prStat b{font-size:12px}
+ #printReport .prStop{padding:4px 6px;grid-template-columns:24px 1fr 48px}
+ #printReport .prQr{width:43px;height:43px}
+ #printReport .prMap svg{height:140px}
+ #printReport .prCode img{width:55px;height:55px}
+ #printReport .prDay h3{font-size:11px}
+}
 </style>
 </head>
 <body>
@@ -452,19 +492,27 @@ function printProfessionalPlan(){
  if(!lastPlanStops.length||!document.getElementById('generated').textContent.trim()){
   alert('Generate a trip plan before printing.');return;
  }
- const preliminary=/PRELIMINARY PLAN ONLY|Preliminary Driver Trip Plan/.test(document.getElementById('plan').textContent);
- const safe=lastPlanStops.every(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
- const qr=(url,label)=>'<div class="prCode"><img src="'+esc(qrUrl(url))+'" alt="'+esc(label)+' QR"><div>'+esc(label)+'</div></div>';
+ const stops=lastPlanStops, preliminary=/PRELIMINARY PLAN ONLY|Preliminary Driver Trip Plan/.test(document.getElementById('plan').textContent);
  const date=s=>s?new Date(s).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}):'Not entered';
- const fmt=(p,i)=>'<div class="prStop"><b>'+(i+1)+'</b><div><strong>'+esc(p.name||'Stop')+'</strong><small>'+esc(p.address||'Address not verified')+'</small><small>'+esc(p.kind||'Waypoint')+(p.truckEntrance?' • Entrance: '+esc(p.truckEntrance):'')+'</small></div>'+(safe?'<img class="prQr" src="'+esc(qrUrl(googleUrl(p.lat,p.lng,p.address)))+'" alt="Stop QR">':'<small>Unverified</small>')+'</div>';
- const stops=lastPlanStops;
- const segments=[];let current=[];
- stops.forEach((p,i)=>{current.push({p,i});if(p.kind==='rest'||p.kind==='delivery'||i===stops.length-1){segments.push(current);current=[];}});
- const days=segments.map((arr,i)=>'<section class="prDay"><h3>DAY '+(i+1)+' — '+(arr[arr.length-1].p.kind==='delivery'?'DELIVERY':'BREAK / REST PLAN')+'</h3>'+arr.map(x=>fmt(x.p,x.i)).join('')+'</section>').join('');
- const google=googleWholeTripUrl(stops),apple=appleWholeTripUrl(stops),trucker=truckerPathUrl(stops);
- const report='<div class="prHead"><div><h1>ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN • TRIP '+esc(val('trip')||'UNNUMBERED')+'</div></div><div>Pickup: '+esc(date(val('departureTime')))+'<div>Delivery: '+esc(date(val('deliveryTime')))+'</div></div></div>'+
- '<div class="prStats"><div class="prStat">Driver<b>'+esc(val('driver')||'Not assigned')+'</b></div><div class="prStat">Truck / Trailer<b>'+esc((val('truck')||'—')+' / '+(val('trailer')||'—'))+'</b></div><div class="prStat">Planned Stops<b>'+stops.length+'</b></div><div class="prStat">Fuel Network<b>'+esc(val('network'))+'</b></div></div>'+
- '<div class="prLayout"><div>'+days+'</div><aside class="prSide"><h3>Route & Navigation</h3><div><b>Pickup:</b> '+esc(stops[0].address)+'</div><div><b>Delivery:</b> '+esc(stops[stops.length-1].address)+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY ONLY — intermediate stops not assigned. NOT DISPATCH READY.':'Confirm every truck entrance, fuel/rest stop, HOS and legal truck route before driving.')+'</div><h3>Navigation QR Codes</h3><div class="prCodes">'+qr(google,'Google Maps')+qr(apple,'Apple delivery only')+qr(trucker,'Trucker Path')+'</div><h3>Company Route / Highways</h3><div>'+esc(val('notes')||'Confirm with dispatch')+'</div><h3>Driving Strategy</h3><div>'+esc(val('strategy')||'Break before 8 hours; follow ELD/HOS')+'</div><h3>Garmin GPX</h3><div>Download separately using the Export Whole-Trip Garmin GPX button after verifying every stop. A QR code cannot install a GPX file on a Garmin device.</div><h3>Truck Safety</h3><div>Google and Apple Maps do not verify truck-safe corridors. Check low bridges, restrictions, dimensions, weight, parking and approved truck entrances in professional truck navigation.</div></aside></div><div class="prFooter">Generated from current Dispatch Pro stop data. Route visualization is not included; this report must not be mistaken for a validated truck navigation map.</div>';
+ const qr=(url,label)=>'<div class="prCode"><img src="'+esc(qrUrl(url))+'" alt="'+esc(label)+' QR"><div><b>'+esc(label)+'</b></div></div>';
+ const fmt=(p,i)=>'<div class="prStop"><b>'+(i+1)+'</b><div><strong>'+esc(p.name||'Stop')+'</strong><small>'+esc(p.address||'Address not verified')+'</small><small>'+esc(p.kind||'Planned waypoint')+(p.truckEntrance?' • Entrance: '+esc(p.truckEntrance):'')+'</small></div><img class="prQr" src="'+esc(qrUrl(googleUrl(p.lat,p.lng,p.address)))+'" alt="Directions QR"></div>';
+ const groups=[];let current=[];
+ stops.forEach((p,i)=>{current.push({p,i});if(p.kind==='rest'||p.kind==='delivery'||i===stops.length-1){groups.push(current);current=[];}});
+ const days=groups.map((arr,i)=>'<section class="prDay"><h3>DAY '+(i+1)+'  |  '+esc(arr[0].p.name||'Departure')+' → '+esc(arr[arr.length-1].p.name||'Destination')+'</h3>'+arr.map(x=>fmt(x.p,x.i)).join('')+'</section>').join('');
+ const coords=stops.map((p,i)=>({i,lat:Number(p.lat),lng:Number(p.lng),name:p.name})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&p.lat!==0&&p.lng!==0);
+ let diagram='<div class="prWarning">Some locations lack coordinates. Open the map link to review all stops.</div>';
+ if(coords.length>=2){
+  const xs=coords.map(p=>p.lng),ys=coords.map(p=>p.lat),xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);
+  const pt=p=>({x:35+340*(p.lng-xmin)/Math.max(.001,xmax-xmin),y:25+150*(ymax-p.lat)/Math.max(.001,ymax-ymin)});
+  diagram='<svg viewBox="0 0 410 200" role="img" aria-label="Schematic of geocoded stop positions, not a road route"><polyline points="'+coords.map(p=>{const q=pt(p);return q.x.toFixed(1)+','+q.y.toFixed(1)}).join(' ')+'" fill="none" stroke="#2674c7" stroke-width="4" stroke-dasharray="7 6"/>'+coords.map(p=>{const q=pt(p);return '<circle cx="'+q.x+'" cy="'+q.y+'" r="10" fill="#0b3b78" stroke="white" stroke-width="2"/><text x="'+q.x+'" y="'+(q.y+4)+'" text-anchor="middle" fill="white" font-size="10" font-weight="bold">'+(p.i+1)+'</text>'}).join('')+'</svg>';
+ }
+ const map='<div class="prMap"><div class="prMapTitle">TRIP STOP OVERVIEW</div>'+diagram+'<div class="prMapCaption">Schematic straight-line stop positions only — NOT a road map or validated truck-safe route. Numbers match the stop list.</div><a href="'+esc(googleWholeTripUrl(stops))+'" target="_blank" rel="noopener">Open route in Google Maps (verify truck restrictions)</a></div>';
+ const metrics=document.querySelectorAll('#generated .summary .metric');
+ const metric=(i)=>metrics[i]?metrics[i].textContent.trim():'Not available';
+ const weight=val('weight')?val('weight')+' lb':'Not entered';
+ const report='<div class="prHead"><div><h1>◢ ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN</div></div><div><b>Trip '+esc(val('trip')||'UNNUMBERED')+'</b><div>'+esc(stops[0].name||'Origin')+' → '+esc(stops[stops.length-1].name||'Delivery')+'</div><div>Depart: '+esc(date(val('departureTime')))+'</div><div>Deliver: '+esc(date(val('deliveryTime')))+'</div></div></div>'+
+ '<div class="prStats"><div class="prStat">Truck Route Miles<b>'+esc(metric(0))+'</b></div><div class="prStat">Drive Estimate<b>'+esc(metric(1))+'</b></div><div class="prStat">Load Weight<b>'+esc(weight)+'</b></div><div class="prStat">Trip Days<b>'+esc(metric(2))+'</b></div><div class="prStat">Driver / Truck<b>'+esc(val('driver')||'Unassigned')+' / '+esc(val('truck')||'—')+'</b></div></div>'+
+ '<div class="prLayout"><div>'+days+'</div><aside class="prSide">'+map+'<h3>Navigation Exports</h3><div class="prCodes">'+qr(googleWholeTripUrl(stops),'Google Maps')+qr(appleWholeTripUrl(stops),'Apple Delivery')+qr(truckerPathUrl(stops),'Trucker Path')+'</div><h3>Trip Notes & Strategy</h3><div><b>Fuel network:</b> '+esc(val('network'))+'</div><div><b>Highways:</b> '+esc(val('notes')||'Verify with dispatch')+'</div><div><b>Strategy:</b> '+esc(val('strategy'))+'</div><div><b>Truck / Trailer:</b> '+esc(val('truck')||'—')+' / '+esc(val('trailer')||'—')+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY — stops not assigned. NOT DISPATCH READY.':'Stop positions, parking, HOS and truck entrances require driver/dispatch verification.')+'</div><h3>Garmin GPX</h3><div>Download the Garmin GPX separately in the planner after verifying stops. This report does not contain a GPX download QR.</div><h3>Truck Safety</h3><div>Google/Apple Maps are not truck-safe routing tools. Follow posted restrictions and verified commercial truck navigation.</div></aside></div>';
  const preview=document.getElementById('printReport');
  preview.innerHTML='<div class="actions no-print" style="margin-bottom:14px"><button type="button" class="btn primary" onclick="window.print()">Print / Save as PDF</button><button type="button" class="btn secondary" onclick="document.getElementById(\'printReport\').classList.remove(\'previewOpen\')">Close Preview</button></div>'+report;
  preview.classList.add('previewOpen');
