@@ -21,6 +21,23 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 @media print{body{background:white;color:black}.form-card,.no-print{display:none!important}.card,.day,.metric{background:white;color:black;border-color:#bbb}.muted,.meta,.sub,label{color:#444}.qrrow,.btn{display:none}}
 
 #printReport{display:none}
+#printReport.previewOpen{display:block;background:#fff;color:#102342;padding:16px;margin:12px auto;max-width:1100px;border-radius:12px}
+#printReport.previewOpen .prHead{background:#0b2143;color:white;padding:12px 16px;display:flex;justify-content:space-between}
+#printReport.previewOpen .prHead h1{color:white;margin:0}
+#printReport.previewOpen .prStats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
+#printReport.previewOpen .prStat{border:1px solid #c5d5e8;padding:8px;border-radius:6px}
+#printReport.previewOpen .prStat b{display:block}
+#printReport.previewOpen .prLayout{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:12px}
+#printReport.previewOpen .prDay,#printReport.previewOpen .prSide{border:1px solid #b6cde5;padding:10px;margin-bottom:10px;border-radius:7px}
+#printReport.previewOpen .prDay h3{background:#0d3972;color:white;padding:7px}
+#printReport.previewOpen .prStop{display:grid;grid-template-columns:24px 1fr 58px;gap:6px;padding:8px;border-bottom:1px solid #ddd}
+#printReport.previewOpen .prStop small{display:block;color:#506176}
+#printReport.previewOpen .prQr{width:52px}
+#printReport.previewOpen .prCodes{display:flex;gap:12px;flex-wrap:wrap}
+#printReport.previewOpen .prCode img{width:70px;height:70px;display:block}
+#printReport.previewOpen .prWarning{background:#fff2d7;padding:8px;margin:10px 0}
+@media(max-width:650px){#printReport.previewOpen .prLayout{grid-template-columns:1fr}}
+@media print{#printReport.previewOpen{margin:0;padding:0;border:0}}
 @media print{
  @page{size:landscape;margin:9mm}
  body{background:#fff!important;color:#102342!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -448,8 +465,10 @@ function printProfessionalPlan(){
  const report='<div class="prHead"><div><h1>ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN • TRIP '+esc(val('trip')||'UNNUMBERED')+'</div></div><div>Pickup: '+esc(date(val('departureTime')))+'<div>Delivery: '+esc(date(val('deliveryTime')))+'</div></div></div>'+
  '<div class="prStats"><div class="prStat">Driver<b>'+esc(val('driver')||'Not assigned')+'</b></div><div class="prStat">Truck / Trailer<b>'+esc((val('truck')||'—')+' / '+(val('trailer')||'—'))+'</b></div><div class="prStat">Planned Stops<b>'+stops.length+'</b></div><div class="prStat">Fuel Network<b>'+esc(val('network'))+'</b></div></div>'+
  '<div class="prLayout"><div>'+days+'</div><aside class="prSide"><h3>Route & Navigation</h3><div><b>Pickup:</b> '+esc(stops[0].address)+'</div><div><b>Delivery:</b> '+esc(stops[stops.length-1].address)+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY ONLY — intermediate stops not assigned. NOT DISPATCH READY.':'Confirm every truck entrance, fuel/rest stop, HOS and legal truck route before driving.')+'</div><h3>Navigation QR Codes</h3><div class="prCodes">'+qr(google,'Google Maps')+qr(apple,'Apple delivery only')+qr(trucker,'Trucker Path')+'</div><h3>Company Route / Highways</h3><div>'+esc(val('notes')||'Confirm with dispatch')+'</div><h3>Driving Strategy</h3><div>'+esc(val('strategy')||'Break before 8 hours; follow ELD/HOS')+'</div><h3>Garmin GPX</h3><div>Download separately using the Export Whole-Trip Garmin GPX button after verifying every stop. A QR code cannot install a GPX file on a Garmin device.</div><h3>Truck Safety</h3><div>Google and Apple Maps do not verify truck-safe corridors. Check low bridges, restrictions, dimensions, weight, parking and approved truck entrances in professional truck navigation.</div></aside></div><div class="prFooter">Generated from current Dispatch Pro stop data. Route visualization is not included; this report must not be mistaken for a validated truck navigation map.</div>';
- document.getElementById('printReport').innerHTML=report;
- window.print();
+ const preview=document.getElementById('printReport');
+ preview.innerHTML='<div class="actions no-print" style="margin-bottom:14px"><button type="button" class="btn primary" onclick="window.print()">Print / Save as PDF</button><button type="button" class="btn secondary" onclick="document.getElementById(\'printReport\').classList.remove(\'previewOpen\')">Close Preview</button></div>'+report;
+ preview.classList.add('previewOpen');
+ preview.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 async function buildPlan(){
