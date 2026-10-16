@@ -6,6 +6,12 @@ const file=process.env.STOP_DIRECTORY_PATH||'/data/truck-stops.json';
 let records=[];
 try{const data=JSON.parse(fs.readFileSync(file,'utf8'));if(Array.isArray(data))records=data.filter(valid).slice(0,25000);}catch(e){if(e.code!=='ENOENT')console.warn('Stop directory unavailable:',e.message);}
 function valid(p){return p&&typeof p.name==='string'&&typeof p.address==='string'&&p.address.length>5&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Math.abs(p.lat)<=90&&Math.abs(p.lng)<=180&&['Pilot','Flying J','Love\'s','One9','TA','Petro','Little America'].includes(p.brand);}
+// Bundled TA/Petro directory seed: loaded at startup even without a Railway volume.
+try{
+ const seeded=require('./data/ta-petro-seed.json');
+ const seen=new Set(records.map(p=>p.brand+':'+p.lat.toFixed(5)+':'+p.lng.toFixed(5)));
+ for(const p of seeded){if(!valid(p))continue;const k=p.brand+':'+p.lat.toFixed(5)+':'+p.lng.toFixed(5);if(!seen.has(k)){records.push(p);seen.add(k);}}
+}catch(e){console.warn('Bundled TA/Petro directory unavailable:',e.message);}
 // User-supplied TruckerPro listing and map screenshot; GPS point is on the property.
 const starterStops=[{name:'Pilot Travel Center #602',brand:'Pilot',storeNumber:'602',address:'224 Daniel Payne Dr, Birmingham, AL 35207',phone:'205-323-2177',lat:33.5621,lng:-86.8307,source:'User-supplied TruckerPro listing and map screenshot',verifiedEntrance:false,preliminary:true}];
 for(const p of starterStops){if(!records.some(r=>r.brand===p.brand&&(r.storeNumber===p.storeNumber||Math.abs(r.lat-p.lat)<0.0001&&Math.abs(r.lng-p.lng)<0.0001)))records.push(p);}
