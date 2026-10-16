@@ -335,21 +335,39 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    if(stop.miles<minMiles||stop.miles>maxMiles||stop.driveHours>hoursLeft||stop.driveHours>=8)throw new Error(entered.name+' is '+stop.miles.toFixed(1)+' truck-route miles / '+stop.driveHours.toFixed(1)+' drive hours away; choose a stop within '+minMiles+'–'+maxMiles+' miles and the available clock.');
    return stop;
  }
- const r=await fetchTimed('/api/truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),profile:truckProfile(),kind,network,minMiles,maxMiles})});
- const j=await r.json();
- let candidates=[],publicDirectory=false;
- if(r.status===503){
-   const fallback=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
-   const f=await fallback.json();
-   if(!fallback.ok)throw new Error('Automatic truck-stop directories unavailable. Enter dispatcher-selected stop addresses or generate a preliminary plan.');
-   candidates=f.stops||[];publicDirectory=true;
- }else if(!r.ok)throw new Error(j.error||'Truck-stop search failed');
- else candidates=(j.stops||[]).filter(p=>p.miles>=minMiles&&p.miles<=maxMiles).sort((a,b)=>Math.abs(a.miles-targetMiles)-Math.abs(b.miles-targetMiles));
- for(const stop of candidates.slice(0,publicDirectory?24:3)){
+ // Open-data first: avoid a paid POI lookup on every trip. The truck-route
+ // service remains responsible for validating mileage and drive time.
+ const candidates=[];
+ let openDirectoryError='';
+ try{
+   const r=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
+   if(!r.ok)throw new Error('Open truck-stop directory temporarily unavailable');
+   const j=await r.json();
+   candidates.push(...(j.stops||[]).map(p=>({...p,publicDirectory:true})));
+ }catch(e){openDirectoryError=e.message;}
+ // Check open-data candidates against the commercial-truck routing engine.
+ // These are candidate facilities, NOT verified truck entrances.
+ for(const stop of candidates.slice(0,35)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
-   if(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)return {...stop,kind,miles,driveHours:hours,source:publicDirectory?'OpenStreetMap candidate — verify address and truck entrance':stop.source};
+   if(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)
+     return {...stop,kind,miles,driveHours:hours,source:'OpenStreetMap — candidate location; verify truck entrance and brand'};
  }
+ // Only fall back to licensed POI discovery when the free directory cannot
+ // supply a candidate in the requested window. No invented stop locations.
+ try{
+   const r=await fetchTimed('/api/truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),profile:truckProfile(),kind,network,minMiles,maxMiles})});
+   if(r.ok){
+     const j=await r.json();
+     const paid=(j.stops||[]).filter(p=>p.miles>=minMiles&&p.miles<=maxMiles).sort((a,b)=>Math.abs(a.miles-targetMiles)-Math.abs(b.miles-targetMiles));
+     for(const stop of paid.slice(0,4)){
+       let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
+       const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
+       if(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)return {...stop,kind,miles,driveHours:hours};
+     }
+   }
+ }catch(e){console.warn('Optional licensed stop directory unavailable:',e.message);}
+
  throw new Error('No verified approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' truck-route miles and available hours. Enter dispatcher-selected stops or use a preliminary plan.');
 }
 async function buildGenericPlan(){
