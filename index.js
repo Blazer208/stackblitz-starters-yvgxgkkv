@@ -1,7 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const {normalizeMatches}=require('./stop-policy');
+const {normalizeMatches,brandOf,allowedBrand}=require('./stop-policy');
 const stopDirectory=require('./stop-directory');
 const {createAuth}=require('./auth');
 const auth=createAuth({dbPath:process.env.AUTH_DB_PATH||'/data/accounts.sqlite',origin:process.env.APP_ORIGIN,setupHash:process.env.OWNER_SETUP_TOKEN_HASH,setupExpires:process.env.OWNER_SETUP_EXPIRES?Number(process.env.OWNER_SETUP_EXPIRES):Date.now()+86400000});
