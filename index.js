@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const {normalizeMatches}=require('./stop-policy');
+const stopDirectory=require('./stop-directory');
 const {createAuth}=require('./auth');
 const auth=createAuth({dbPath:process.env.AUTH_DB_PATH||'/data/accounts.sqlite',origin:process.env.APP_ORIGIN,setupHash:process.env.OWNER_SETUP_TOKEN_HASH,setupExpires:process.env.OWNER_SETUP_EXPIRES?Number(process.env.OWNER_SETUP_EXPIRES):Date.now()+86400000});
 
@@ -65,6 +66,8 @@ async function osmTruckStops(req,res){
   let raw='';for await(const part of req){raw+=part;if(raw.length>4096)return json(res,413,{error:'Request too large'});}
   const {points,kind='break',network='Pilot / Flying J only'}=JSON.parse(raw);
   if(!Array.isArray(points)||points.length!==2||points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)||Math.abs(p.lat)>90||Math.abs(p.lng)>180)||!['break','rest'].includes(kind))return json(res,400,{error:'Invalid search'});
+  const local=stopDirectory.search(points[0],points[1],brand=>allowedBrand(brand,kind,network));
+  if(local.length>=8)return json(res,200,{stops:local,provider:'Route Stride local OpenStreetMap candidate directory — verify truck entrance',directoryCount:stopDirectory.count()});
   const key=JSON.stringify([points,kind,network]);const hit=osmStopCache.get(key);
   if(hit&&Date.now()-hit.at<1800000)return json(res,200,hit.value);
   const [a,b]=points;const distance=Math.hypot((a.lat-b.lat)*69,(a.lng-b.lng)*69*Math.cos(a.lat*Math.PI/180));
@@ -86,8 +89,10 @@ async function osmTruckStops(req,res){
    const brand=brandOf(name);
    return {name,brand,address,lat,lng,street,source:'OpenStreetMap — unverified'};
   }).filter(p=>p.street&&p.address&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&allowedBrand(p.brand,kind,network)&&!seen.has(p.lat+','+p.lng)&&seen.add(p.lat+','+p.lng));
+  stopDirectory.add(stops);
   stops.sort((x,y)=>Math.hypot(x.lat-a.lat,x.lng-a.lng)-Math.hypot(y.lat-a.lat,y.lng-a.lng));
-  const value={stops:stops.slice(0,90),provider:'OpenStreetMap — candidate locations, truck route verification required'};
+  const merged=[...local,...stops].filter((p,i,arr)=>arr.findIndex(x=>x.brand===p.brand&&Math.abs(x.lat-p.lat)<.0001&&Math.abs(x.lng-p.lng)<.0001)===i);
+  const value={stops:merged.slice(0,90),provider:'Route Stride local directory + OpenStreetMap — candidate locations, truck route verification required',directoryCount:stopDirectory.count()};
   if(osmStopCache.size>60)osmStopCache.delete(osmStopCache.keys().next().value);
   osmStopCache.set(key,{at:Date.now(),value});return json(res,200,value);
  }catch(e){console.error('Public stop lookup failed',String(e.message).slice(0,120));return json(res,503,{error:'Public truck-stop directory unavailable; use dispatcher-selected stops'});}
