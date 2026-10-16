@@ -347,12 +347,24 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  }catch(e){openDirectoryError=e.message;}
  // Check open-data candidates against the commercial-truck routing engine.
  // These are candidate facilities, NOT verified truck entrances.
- for(const stop of candidates.slice(0,35)){
+ // Rank eligible locations by extra truck-route miles, not straight-line proximity.
+ // This discourages stops across the interstate or far off the driver's corridor.
+ let directMiles=null;
+ try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
+ const eligible=[];
+ for(const stop of candidates.slice(0,18)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
-   if(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)
-     return {...stop,kind,miles,driveHours:hours,source:'OpenStreetMap — candidate location; verify truck entrance and brand'};
+   if(!(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
+   let detourMiles=Infinity;
+   if(directMiles!==null){
+     try{const via=await routeThrough([origin,stop,destination]);detourMiles=Math.max(0,via.distance/1609.344-directMiles);}catch(e){continue;}
+     if(detourMiles>35)continue; // avoid excessive diversion from the truck-safe corridor
+   }
+   eligible.push({...stop,kind,miles,driveHours:hours,detourMiles,source:'Candidate stop — truck-route corridor checked; verify entrance, brand and interstate access'});
  }
+ eligible.sort((a,b)=>a.detourMiles-b.detourMiles||Math.abs(a.miles-targetMiles)-Math.abs(b.miles-targetMiles));
+ if(eligible.length)return eligible[0];
  // Only fall back to licensed POI discovery when the free directory cannot
  // supply a candidate in the requested window. No invented stop locations.
  try{
