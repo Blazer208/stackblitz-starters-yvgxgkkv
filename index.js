@@ -79,7 +79,7 @@ async function osmTruckStops(req,res){
   }
   const query='[out:json][timeout:24];('+clauses.join('')+');out center tags 150;';
   const upstream=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'RouteStride/1.0 (truck stop discovery)'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(28000)});
-  if(!upstream.ok)return json(res,503,{error:'Public truck-stop directory is temporarily unavailable'});
+  if(!upstream.ok){if(local.length)return json(res,200,{stops:local,provider:'Route Stride local directory — live update unavailable'});return json(res,503,{error:'Public truck-stop directory is temporarily unavailable'});}
   const data=await upstream.json();const seen=new Set();
   const stops=(data.elements||[]).map(e=>{
    const tags=e.tags||{},name=tags.name||tags.brand||tags.operator||'';
