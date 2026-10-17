@@ -168,8 +168,8 @@ const server = http.createServer(async (req, res) => {
   if(urlPath==='/api/loves-directory'){
     if(req.method!=='GET')return json(res,405,{error:'Use GET'});
     if(!auth.userFor(req))return json(res,401,{error:'Sign in required'});
-    const stops=[{name:"Love's #368",brand:"Love's",address:'300 Arby Dr, Clanton, AL 35046',verifiedEntrance:false},{name:"Love's #478",brand:"Love's",address:'6737 South 45th West, Idaho Falls, ID 83402',verifiedEntrance:false}];
-    return json(res,200,{count:stops.length,stops,notice:'Only two supplied Love\'s addresses currently available; not nationwide'});
+    const stops=require('./data/loves-addresses.json');
+    return json(res,200,{count:stops.length,stops,notice:'68 source-listed addresses across 15 states; not nationwide, truck entrances and coordinates unverified'});
   }
   if (urlPath === '/api/pilot-flyingj-directory') {
     if(req.method!=='GET')return json(res,405,{error:'Use GET'});
