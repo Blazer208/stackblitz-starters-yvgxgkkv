@@ -326,7 +326,7 @@ let manualStopQueue=[],manualStopMode=false;
 function legDriveHours(route,speed){return Math.max(route.duration/3600,route.distance/1609.344/speed);}
 async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,require300=false){
  const {minMiles,maxMiles,targetMiles}=stopWindow(kind,hoursLeft,speed,require300);
- if(manualStopMode){
+ if(manualStopMode&&manualStopQueue.length){
    const entered=manualStopQueue.shift();if(!entered)throw new Error('Add the next dispatcher-selected '+kind+' stop. The entered stop list ends before delivery.');
    if(!allowedBrand(brandOf(entered.name),kind,network))throw new Error(entered.name+' is not in the approved '+kind+' network.');
    const geo=await geocode(entered.address);if(!geo)throw new Error('Could not locate truck stop: '+entered.address);
@@ -387,7 +387,7 @@ async function buildGenericPlan(){
  const trip=val('trip')||'UNNUMBERED',pickupAddress=val('pickup'),deliveryAddress=val('delivery');
  const maxHours=Number(val('maxHours')),avgSpeed=Number(val('avgSpeed')),cycle=Number(val('cycle'));
  if(!pickupAddress||!deliveryAddress)throw new Error('Pickup and delivery addresses are required.');
- manualStopQueue=[];manualStopMode=false;
+ manualStopQueue=window.routeStrideSelectedStop?[window.routeStrideSelectedStop]:[];manualStopMode=manualStopQueue.length>0;
  if(!Number.isFinite(maxHours)||maxHours<1||maxHours>11||!Number.isFinite(avgSpeed)||avgSpeed<10||avgSpeed>75||!Number.isFinite(cycle)||cycle<=0)throw new Error('Enter drive hours from 1–11, speed from 10–75 mph, and positive cycle hours.');
  status.innerHTML='<span class="spinner"></span>Locating current trip addresses…';
  // Sequential public lookups avoid simultaneous requests from one browser.
@@ -427,7 +427,7 @@ async function buildGenericPlan(){
    if(current.kind==='delivery')break;
  }
  if(current.kind!=='delivery')throw new Error('Trip exceeds the 16-day planning limit. Split the trip with dispatch.');
- if(manualStopQueue.length)throw new Error('There are unused dispatcher-selected stops after the planned delivery. Review the stop order and remove extra stops.');
+ if(manualStopQueue.length)throw new Error('The selected Pilot / Flying J address was not used in the plan; choose a stop within the planned route and break window.');
  if(totalHours>cycle)throw new Error('Estimated driving needs '+totalHours.toFixed(1)+' hours, exceeding the entered '+cycle+' cycle hours. Update available hours or plan a reset/recap with dispatch.');
  lastPlanStops=stops;lastOrigin=stops[0];lastDest=stops[stops.length-1];
  // Each selected leg has been truck-routed. No invented road geometry is exported.
@@ -642,5 +642,8 @@ async function buildPlan(){
  x.innerHTML='<b>Imported route loaded for review.</b> Verify all addresses, required waypoints, highways and truck restrictions before generating a plan. Route notes do not force the router to use those highways.';
  document.querySelector('.form-card').before(x);
 })();
+</script>
+<script>
+(function(){const q=new URLSearchParams(location.search);const address=q.get('pilotStop');if(!address)return;window.routeStrideSelectedStop={name:'Pilot Travel Center (listing unverified)',brand:'Pilot',address};const box=document.createElement('div');box.className='card';box.textContent='Selected Pilot / Flying J address for first break: '+address+'. This address will be geocoded and truck-route checked when you generate the plan; if it does not fit, planning stops with an error. Confirm actual brand and truck entrance.';document.querySelector('.form-card')?.before(box);})();
 </script>
 </body></html>
