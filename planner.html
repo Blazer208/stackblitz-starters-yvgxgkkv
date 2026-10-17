@@ -115,7 +115,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
-<body><p style="text-align:center"><a href="/pilot-flyingj-directory.html">Pilot / Flying J Address Book (305 locations)</a></p>
+<body><p style="text-align:center"><a href="/pilot-flyingj-directory.html">Pilot / Flying J (305)</a> | <a href="/ta-petro-directory.html">TA / Petro (350)</a> | <a href="/loves-directory.html">Love's (2)</a></p><p style="text-align:center"><a href="/pilot-flyingj-directory.html">Pilot / Flying J Address Book (305 locations)</a></p>
 <div class="wrap">
  <div id="accountBar" class="actions no-print"><span id="accountName">Signed in</span><button id="logoutButton" class="btn secondary" type="button">Sign Out</button><button id="inviteButton" class="btn secondary" type="button" hidden>Create Tester Invitation</button></div>
  <div id="invitationPanel" class="card no-print" hidden><label for="inviteUrl">Single-use invitation — expires in 24 hours. Share only with your intended tester.</label><input id="inviteUrl" readonly></div>
@@ -644,6 +644,6 @@ async function buildPlan(){
 })();
 </script>
 <script>
-(function(){const q=new URLSearchParams(location.search);const address=q.get('pilotStop');if(!address)return;window.routeStrideSelectedStop={name:'Pilot Travel Center (listing unverified)',brand:'Pilot',address};const box=document.createElement('div');box.className='card';box.textContent='Selected Pilot / Flying J address for first break: '+address+'. This address will be geocoded and truck-route checked when you generate the plan; if it does not fit, planning stops with an error. Confirm actual brand and truck entrance.';document.querySelector('.form-card')?.before(box);})();
+(function(){const q=new URLSearchParams(location.search);const address=q.get('pilotStop')||q.get('selectedStop');if(!address)return;window.routeStrideSelectedStop={name:(q.get('selectedBrand')||'Pilot')+' Travel Center (listing unverified)',brand:q.get('selectedBrand')||'Pilot',address};const box=document.createElement('div');box.className='card';box.textContent='Selected truck stop address for first break: '+address+'. This address will be geocoded and truck-route checked when you generate the plan; if it does not fit, planning stops with an error. Confirm actual brand and truck entrance.';document.querySelector('.form-card')?.before(box);})();
 </script>
 </body></html>
