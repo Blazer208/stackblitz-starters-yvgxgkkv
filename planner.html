@@ -340,7 +340,7 @@ function corridorDistanceMiles(p,a,b){
  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy))*69;
 }
 async function routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed){
- const directory=await loadRouteStrideDirectories(),statePattern=/,\\s*([A-Z]{2})\\s+\\d{5}/;
+ const directory=await loadRouteStrideDirectories(),statePattern=/,\s*([A-Z]{2})\s+\d{5}/;
  const originState=String(origin.address||'').match(statePattern)?.[1],destinationState=String(destination.address||'').match(statePattern)?.[1];
  const states=new Set([originState,destinationState].filter(Boolean));
  const eligible=directory.filter(s=>allowedBrand(brandOf(s.name),kind,network));
