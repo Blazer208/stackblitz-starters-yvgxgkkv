@@ -392,7 +392,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  let directMiles=null;
  try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
  const eligible=[];
- for(const stop of candidates.slice(0,18)){
+ for(const stop of candidates.filter(s=>allowedBrand(brandOf(s.name),kind,network)).slice(0,36)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
    if(!(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
