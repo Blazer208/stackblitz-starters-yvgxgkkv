@@ -342,10 +342,12 @@ function corridorDistanceMiles(p,a,b){
 async function routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed){
  const directory=await loadRouteStrideDirectories(),statePattern=/,\s*([A-Z]{2})\s+\d{5}/;
  const originState=String(origin.address||'').match(statePattern)?.[1],destinationState=String(destination.address||'').match(statePattern)?.[1];
+ const adjacent={ID:['MT','WY','UT','NV','OR','WA'],UT:['ID','WY','CO','AZ','NV'],WY:['ID','MT','SD','NE','CO','UT'],CO:['WY','NE','KS','OK','NM','AZ','UT'],NE:['WY','SD','IA','MO','KS','CO'],KS:['NE','MO','OK','CO'],MO:['IA','IL','KY','TN','AR','OK','KS','NE'],OK:['KS','MO','AR','TX','NM','CO'],TX:['NM','OK','AR','LA'],IA:['MN','WI','IL','MO','NE','SD'],IL:['WI','IA','MO','KY','IN'],IN:['IL','MI','OH','KY'],OH:['MI','IN','KY','WV','PA'],WI:['MN','MI','IL','IA'],OR:['WA','ID','NV','CA'],WA:['ID','OR'],CA:['OR','NV','AZ'],AZ:['CA','NV','UT','NM'],NM:['AZ','UT','CO','OK','TX'],TN:['KY','VA','NC','GA','AL','MS','AR','MO'],VA:['WV','MD','NC','TN','KY'],GA:['FL','AL','TN','NC','SC'],FL:['GA','AL'],SC:['GA','NC'],LA:['TX','AR','MS'],AR:['MO','TN','MS','LA','TX','OK'],MS:['TN','AL','LA','AR']};
  const states=new Set([originState,destinationState].filter(Boolean));
+ for(const state of [...states])for(const near of adjacent[state]||[])states.add(near);
  const eligible=directory.filter(s=>allowedBrand(brandOf(s.name),kind,network));
- // Geocoding hundreds of addresses per request is impractical; try relevant-state records first.
- const shortlist=eligible.filter(s=>states.size&&states.has(s.address.match(statePattern)?.[1])).slice(0,8);
+ // Include nearby corridor states, while bounding public geocoding calls.
+ const shortlist=eligible.filter(s=>states.has(s.address.match(statePattern)?.[1])).slice(0,12);
  const results=[];
  for(const s of shortlist){
   let geo;try{geo=await geocode(s.address)}catch(e){continue}
