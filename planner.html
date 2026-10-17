@@ -330,9 +330,14 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    const entered=manualStopQueue.shift();if(!entered)throw new Error('Add the next dispatcher-selected '+kind+' stop. The entered stop list ends before delivery.');
    if(!allowedBrand(brandOf(entered.name),kind,network))throw new Error(entered.name+' is not in the approved '+kind+' network.');
    const geo=await geocode(entered.address);if(!geo)throw new Error('Could not locate truck stop: '+entered.address);
-   const stop={...entered,lat:geo.lat,lng:geo.lng,kind};
+   const stop={...entered,lat:geo.lat,lng:geo.lng,kind,source:'Dispatcher-selected directory address; geocoded and truck-routed; actual truck entrance unverified'};
    const route=await routeThrough([origin,stop]);stop.miles=route.distance/1609.344;stop.driveHours=legDriveHours(route,speed);
    if(stop.miles<minMiles||stop.miles>maxMiles||stop.driveHours>hoursLeft||stop.driveHours>=8)throw new Error(entered.name+' is '+stop.miles.toFixed(1)+' truck-route miles / '+stop.driveHours.toFixed(1)+' drive hours away; choose a stop within '+minMiles+'–'+maxMiles+' miles and the available clock.');
+   const direct=await routeThrough([origin,destination]);
+   const via=await routeThrough([origin,stop,destination]);
+   stop.detourMiles=Math.max(0,(via.distance-direct.distance)/1609.344);
+   if(stop.detourMiles>35)throw new Error(entered.name+' adds '+stop.detourMiles.toFixed(1)+' truck-route detour miles (35-mile maximum). Select a directory stop closer to the delivery corridor.');
+   stop.verifiedEntrance=false;
    return stop;
  }
  // Open-data first: avoid a paid POI lookup on every trip. The truck-route
