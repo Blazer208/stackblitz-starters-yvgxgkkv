@@ -324,6 +324,36 @@ function stopCard(s,title,note){
 const LEG_POLICY=STOP_POLICY;
 let manualStopQueue=[],manualStopMode=false;
 function legDriveHours(route,speed){return Math.max(route.duration/3600,route.distance/1609.344/speed);}
+let routeStrideDirectoryCache=null;
+async function loadRouteStrideDirectories(){
+ if(routeStrideDirectoryCache)return routeStrideDirectoryCache;
+ const paths=['pilot-flyingj','loves','ta-petro'];
+ const all=await Promise.all(paths.map(async brand=>{
+  try{const r=await fetchTimed('/api/'+brand+'-directory');if(!r.ok)return [];const j=await r.json();return (j.stops||[]).map(x=>({...x,brand:x.brand||(brand==='loves'?"Love's":brand==='ta-petro'?'TA':'Pilot')}));}catch(e){return []}
+ }));
+ routeStrideDirectoryCache=all.flat().filter(s=>s.address&&s.name);
+ return routeStrideDirectoryCache;
+}
+function corridorDistanceMiles(p,a,b){
+ const x=Math.cos(((a.lat+b.lat)/2)*Math.PI/180),ax=a.lng*x,ay=a.lat,bx=b.lng*x,by=b.lat,px=p.lng*x,py=p.lat;
+ const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1)));
+ return Math.hypot(px-(ax+t*dx),py-(ay+t*dy))*69;
+}
+async function routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed){
+ const directory=await loadRouteStrideDirectories(),statePattern=/,\\s*([A-Z]{2})\\s+\\d{5}/;
+ const originState=String(origin.address||'').match(statePattern)?.[1],destinationState=String(destination.address||'').match(statePattern)?.[1];
+ const states=new Set([originState,destinationState].filter(Boolean));
+ const eligible=directory.filter(s=>allowedBrand(brandOf(s.name),kind,network));
+ // Geocoding hundreds of addresses per request is impractical; try relevant-state records first.
+ const shortlist=eligible.filter(s=>states.size&&states.has(s.address.match(statePattern)?.[1])).slice(0,8);
+ const results=[];
+ for(const s of shortlist){
+  let geo;try{geo=await geocode(s.address)}catch(e){continue}
+  if(!geo||corridorDistanceMiles(geo,origin,destination)>50)continue;
+  results.push({...s,lat:geo.lat,lng:geo.lng,source:'Route Stride uploaded address directory — geocoded; entrance not independently verified'});
+ }
+ return results;
+}
 async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,require300=false){
  const {minMiles,maxMiles,targetMiles}=stopWindow(kind,hoursLeft,speed,require300);
  if(manualStopMode&&manualStopQueue.length){
@@ -350,6 +380,9 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    const j=await r.json();
    candidates.push(...(j.stops||[]).map(p=>({...p,publicDirectory:true})));
  }catch(e){openDirectoryError=e.message;}
+ // Also consider uploaded Pilot/Flying J, Love's, and TA/Petro addresses.
+ // Keep the geocoding shortlist bounded to avoid overloading public geocoders.
+ try{candidates.push(...await routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed));}catch(e){console.warn('Uploaded address directory lookup:',e.message);}
  // Check open-data candidates against the commercial-truck routing engine.
  // These are candidate facilities, NOT verified truck entrances.
  // Rank eligible locations by extra truck-route miles, not straight-line proximity.
@@ -385,7 +418,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    }
  }catch(e){console.warn('Optional licensed stop directory unavailable:',e.message);}
 
- throw new Error('No verified approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' truck-route miles and available hours. Enter dispatcher-selected stops or use a preliminary plan.');
+ throw new Error('No approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' truck-route miles and available hours. Enter dispatcher-selected stops or use a preliminary plan.');
 }
 async function buildGenericPlan(){
  const status=document.getElementById('status'),gen=document.getElementById('generated');
