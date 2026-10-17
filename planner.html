@@ -637,7 +637,10 @@ async function buildPlan(){
  try{
    const departure=val("departureTime"),appointment=val("deliveryTime");
    if(departure&&appointment&&new Date(departure)>new Date(appointment))throw new Error("Departure must be before the delivery appointment.");
-   if(matchesSavedMilwaukeeTrip()){await build127532();}else{await buildGenericPlan();}
+   await buildGenericPlan();
+   const activeNetwork=val('network');
+   const disallowed=lastPlanStops.filter(s=>s.kind==='break'||s.kind==='rest').filter(s=>!allowedBrand(brandOf(s.name),s.kind,activeNetwork));
+   if(disallowed.length){lastPlanStops=[];lastRoute=null;document.getElementById('generated').innerHTML='';throw new Error('Network policy violation: '+disallowed.map(s=>s.name).join(', ')+' is not approved for '+activeNetwork+'. Trip plan blocked.');}
    const timing=document.createElement("div");timing.className="notice small";
    timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
    document.getElementById("generated").prepend(timing);
