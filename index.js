@@ -159,6 +159,14 @@ const server = http.createServer(async (req, res) => {
     if(!auth.limit('routing:'+user.id,100,3600000))return json(res,429,{error:'Your hourly planning limit has been reached. Try later.'});
     if(!auth.limit('routing-burst:'+user.id,40,60000))return json(res,429,{error:'Too many planning requests. Try shortly.'});
   }
+  if (urlPath === '/api/pilot-flyingj-directory') {
+    if(req.method!=='GET')return json(res,405,{error:'Use GET'});
+    if(!auth.userFor(req))return json(res,401,{error:'Sign in required'});
+    const entries=require('./data/pilot-flyingj-addresses.json')
+      .filter(x=>Array.isArray(x)&&x.length===3&&x[0]!=='State'&&x.every(v=>typeof v==='string'&&v.length>0))
+      .map(([state,city,address])=>({name:'Pilot / Flying J - '+city,brand:'Pilot / Flying J',state,city,address,source:'User-supplied StoresHours.com listings',coordinatesPending:true,verifiedEntrance:false}));
+    return json(res,200,{count:entries.length,states:new Set(entries.map(x=>x.state)).size,stops:entries,notice:'Address-only listings; coordinates and brand subtype not verified for automatic routing'});
+  }
   if (urlPath === '/api/truck-route') return truckRoute(req,res);
   if (urlPath === '/api/truck-stops') return truckStops(req,res);
   if (urlPath === '/api/osm-truck-stops') return osmTruckStops(req,res);
