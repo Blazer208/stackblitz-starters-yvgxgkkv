@@ -141,7 +141,7 @@ async function truckRoute(req, res) {
   } catch(e) { return json(res,502,{error:'Truck routing unavailable; retry or contact dispatcher'}); }
 }
 const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js','/historical-awareness.html']);
-const protectedFiles=new Set(['/planner.html','/route-import.html','/pilot-flyingj-directory.html','/Route_Stride_Demo.html']);
+const protectedFiles=new Set(['/planner.html','/route-import.html','/pilot-flyingj-directory.html','/ta-petro-directory.html','/loves-directory.html','/Route_Stride_Demo.html']);
 const securityHeaders={
  'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
  'Strict-Transport-Security':'max-age=31536000',
@@ -158,6 +158,18 @@ const server = http.createServer(async (req, res) => {
     if(req.method==='POST'&&!auth.sameOrigin(req))return json(res,403,{error:'Invalid request origin'});
     if(!auth.limit('routing:'+user.id,100,3600000))return json(res,429,{error:'Your hourly planning limit has been reached. Try later.'});
     if(!auth.limit('routing-burst:'+user.id,40,60000))return json(res,429,{error:'Too many planning requests. Try shortly.'});
+  }
+  if(urlPath==='/api/ta-petro-directory'){
+    if(req.method!=='GET')return json(res,405,{error:'Use GET'});
+    if(!auth.userFor(req))return json(res,401,{error:'Sign in required'});
+    const stops=require('./data/ta-petro-seed.json');
+    return json(res,200,{count:stops.length,stops,notice:'Source directory; truck entrances not independently verified'});
+  }
+  if(urlPath==='/api/loves-directory'){
+    if(req.method!=='GET')return json(res,405,{error:'Use GET'});
+    if(!auth.userFor(req))return json(res,401,{error:'Sign in required'});
+    const stops=[{name:"Love's #368",brand:"Love's",address:'300 Arby Dr, Clanton, AL 35046',verifiedEntrance:false},{name:"Love's #478",brand:"Love's",address:'6737 South 45th West, Idaho Falls, ID 83402',verifiedEntrance:false}];
+    return json(res,200,{count:stops.length,stops,notice:'Only two supplied Love\'s addresses currently available; not nationwide'});
   }
   if (urlPath === '/api/pilot-flyingj-directory') {
     if(req.method!=='GET')return json(res,405,{error:'Use GET'});
