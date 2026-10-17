@@ -23,7 +23,9 @@ function brandOf(name) {
 function allowedBrand(brand,kind,network) {
   if (kind==='rest') return ['Pilot','Flying J',"Love's",'One9','TA','Petro','Little America'].includes(brand);
   if (['Pilot','Flying J'].includes(brand)) return true;
-  if (network==='Pilot / Flying J + Love\'s') return brand==="Love's";
+  if (network==="Pilot / Flying J + Love's") return brand==="Love's";
+  if (network==='Pilot / Flying J + TA / Petro') return ['TA','Petro'].includes(brand);
+  if (network==="Pilot / Flying J + Love's + TA / Petro") return ["Love's",'TA','Petro'].includes(brand);
   return network==='All approved networks' && ['One9',"Love's",'TA','Petro','Little America'].includes(brand);
 }
 function normalizeMatches(payload,kind,network) {
