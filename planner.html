@@ -115,10 +115,11 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
-<body><p style="text-align:center"><a href="/pilot-flyingj-directory.html">Pilot / Flying J (305)</a> | <a href="/ta-petro-directory.html">TA / Petro (350)</a> | <a href="/loves-directory.html">Love's (184)</a></p><p style="text-align:center"><a href="/pilot-flyingj-directory.html">Pilot / Flying J Address Book (305 locations)</a></p>
+<body>
 <div class="wrap">
  <div id="accountBar" class="actions no-print"><span id="accountName">Signed in</span><button id="logoutButton" class="btn secondary" type="button">Sign Out</button><button id="inviteButton" class="btn secondary" type="button" hidden>Create Tester Invitation</button></div>
  <div id="invitationPanel" class="card no-print" hidden><label for="inviteUrl">Single-use invitation — expires in 24 hours. Share only with your intended tester.</label><input id="inviteUrl" readonly></div>
+ <details class="card no-print" id="directoryLinksMenu" style="margin:10px 0;padding:10px 14px"><summary class="btn secondary" style="list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px">Truck Stop Address Directories <span aria-hidden="true">▾</span></summary><nav aria-label="Truck stop address directories" style="display:grid;gap:10px;padding:14px 4px 4px"><a class="btn secondary" href="/pilot-flyingj-directory.html">Pilot / Flying J — 305 locations</a><a class="btn secondary" href="/ta-petro-directory.html">TA / Petro — 350 locations</a><a class="btn secondary" href="/loves-directory.html">Love's — 184 locations</a></nav></details>
  <div class="hero">
   <div class="brand"><div class="logo">RS</div><div><h1>Route Stride</h1><div class="sub">Professional Driver Trip Planner</div></div></div>
   <div class="version">VERSION 0.6.3 — 300-MILE FIRST LEG</div>
