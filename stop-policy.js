@@ -21,7 +21,7 @@ function brandOf(name) {
   return null;
 }
 function allowedBrand(brand,kind,network) {
-  if (kind==='rest') return ['Pilot','Flying J',"Love's",'One9','TA','Petro','Little America'].includes(brand);
+  if (!['break','rest'].includes(kind)) return false;
   if (['Pilot','Flying J'].includes(brand)) return true;
   if (network==="Pilot / Flying J + Love's") return brand==="Love's";
   if (network==='Pilot / Flying J + TA / Petro') return ['TA','Petro'].includes(brand);
