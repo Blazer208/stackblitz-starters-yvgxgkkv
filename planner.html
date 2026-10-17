@@ -124,7 +124,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   <div class="version">VERSION 0.6.3 — 300-MILE FIRST LEG</div>
  </div>
 
- <div class="card form-card">
+ <section class="card" id="stopDirectoryPicker"><h3>Truck Stop Directory — choose first break</h3><p class="muted">Search Pilot/Flying J, Love's, or TA/Petro listings and select an address before generating your trip plan. Selected stops must satisfy your fuel-network policy and truck-route checks. Addresses are not verified truck entrances.</p><div class="grid"><div><label for="dirBrand">Directory</label><select id="dirBrand"><option value="pilot-flyingj">Pilot / Flying J (305)</option><option value="loves">Love's (184)</option><option value="ta-petro">TA / Petro (350)</option></select></div><div><label for="dirQuery">Search city or address</label><input id="dirQuery" placeholder="e.g. Idaho Falls, I-80, Cheyenne"></div></div><div id="dirStatus" class="meta">Loading directory…</div><div id="dirMatches"></div><div id="dirSelected" class="notice" hidden></div><button type="button" class="btn secondary" id="dirClear" hidden>Clear selected stop</button></section><div class="card form-card">
   <h2>Build Trip</h2><a class="btn secondary" href="historical-awareness.html" style="margin-left:8px;background:#c81e2a;color:#fff;border:2px solid #ff6470;font-weight:900;box-shadow:0 0 0 3px rgba(200,30,42,.22),0 5px 16px rgba(0,0,0,.25)">📖 Historical Awareness</a><div class="dispatch-upload-feature"><div class="dispatch-upload-copy"><strong>⚡ FASTEST WAY TO BUILD YOUR TRIP</strong><span>Have a dispatch sheet or route PDF? Upload or scan it to start your trip plan.</span></div><a class="btn dispatch-upload-btn" href="route-import.html" aria-label="Upload or scan dispatch route paperwork"><span aria-hidden="true">📄 ⬆</span> UPLOAD / SCAN DISPATCH ROUTE <span aria-hidden="true">→</span></a></div>
   <div class="grid">
    <div><label>Start / Yard</label><input id="yard" value="9950 S Reinhart Dr, Oak Creek, WI 53154"></div>
@@ -646,4 +646,15 @@ async function buildPlan(){
 <script>
 (function(){const q=new URLSearchParams(location.search);const address=q.get('pilotStop')||q.get('selectedStop');if(!address)return;window.routeStrideSelectedStop={name:(q.get('selectedBrand')||'Pilot')+' Travel Center (listing unverified)',brand:q.get('selectedBrand')||'Pilot',address};const box=document.createElement('div');box.className='card';box.textContent='Selected truck stop address for first break: '+address+'. This address will be geocoded and truck-route checked when you generate the plan; if it does not fit, planning stops with an error. Confirm actual brand and truck entrance.';document.querySelector('.form-card')?.before(box);})();
 </script>
-</body></html>
+<script>
+(function(){
+ const root=document.getElementById('stopDirectoryPicker');if(!root)return;
+ const brand=document.getElementById('dirBrand'),query=document.getElementById('dirQuery'),status=document.getElementById('dirStatus'),matches=document.getElementById('dirMatches'),selected=document.getElementById('dirSelected'),clear=document.getElementById('dirClear');
+ let stops=[],request=0;
+ const brands={'pilot-flyingj':'Pilot','loves':"Love's",'ta-petro':'TA'};
+ function chosen(){const s=window.routeStrideSelectedStop;selected.hidden=!s;clear.hidden=!s;if(s)selected.textContent='Selected first break: '+s.name+' — '+s.address+'. Confirm brand, actual truck entrance, and network policy.'}
+ function render(){const q=query.value.trim().toLowerCase();matches.replaceChildren();if(!q){status.textContent='Enter a city, state, street, or ZIP to search '+stops.length+' entries.';return}const found=stops.filter(x=>(x.name+' '+x.address+' '+(x.city||'')).toLowerCase().includes(q)).slice(0,12);status.textContent=found.length+' results shown (maximum 12).';for(const stop of found){const button=document.createElement('button');button.type='button';button.className='btn secondary';button.style.margin='4px';button.textContent=(stop.name||brands[brand.value])+' — '+stop.address;button.addEventListener('click',()=>{window.routeStrideSelectedStop={name:stop.name||brands[brand.value]+' Travel Stop',brand:stop.brand||brands[brand.value],address:stop.address};chosen();});matches.append(button)}}
+ async function load(){const id=++request;status.textContent='Loading directory…';matches.replaceChildren();try{const res=await fetch('/api/'+brand.value+'-directory');if(!res.ok)throw Error('Directory unavailable');const data=await res.json();if(id!==request)return;stops=data.stops||[];render()}catch(e){if(id===request)status.textContent='Could not load this directory. Sign in and try again.'}}
+ brand.addEventListener('change',load);query.addEventListener('input',render);clear.addEventListener('click',()=>{window.routeStrideSelectedStop=null;chosen()});chosen();load();
+})();
+</script></body></html>
