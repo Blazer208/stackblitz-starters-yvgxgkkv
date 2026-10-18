@@ -156,7 +156,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <button class="btn secondary" type="button" onclick="printProfessionalPlan()">Print / Save PDF</button>
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
-  <div style="margin-top:12px"><label style="display:flex;gap:8px;align-items:center"><input id="require300" type="checkbox" style="width:auto">This load requires at least 300 truck-route miles before the first stop after pickup</label><div class="small muted">Use only when dispatch requires it. If the available clock cannot support the minimum, planning stops for dispatch review.</div></div>
+  <input id="require300" type="hidden" value="" aria-hidden="true">
   <div class="small muted">Dispatcher inputs now flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
  </div>
 
@@ -656,7 +656,7 @@ async function buildPlan(){
    const timing=document.createElement("div");timing.className="notice small";
    timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
    document.getElementById("generated").prepend(timing);
- }catch(e){if(/Automatic truck-stop selection is unavailable with the current provider access|licensed Trimble POIs Along the Route key|Automatic truck-stop directories unavailable|No verified approved|No approved (?:fuel\/break|overnight) stop fits/i.test(e.message)){try{await buildPreliminaryPlan();}catch(f){document.getElementById("status").innerHTML='<span class="error"><b>Could not build preliminary route:</b> '+esc(f.message)+'</span>';}}else{document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>';}}
+ }catch(e){console.error('Route Stride automatic stop selection failed:',e);if(/Automatic truck-stop selection is unavailable with the current provider access|licensed Trimble POIs Along the Route key|Automatic truck-stop directories unavailable|No verified approved|No approved (?:fuel\/break|overnight) stop fits/i.test(e.message)){try{await buildPreliminaryPlan();}catch(f){document.getElementById("status").innerHTML='<span class="error"><b>Could not build preliminary route:</b> '+esc(f.message)+'</span>';}}else{document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>';}}
  finally{controls.forEach((c,i)=>c.disabled=previousDisabled[i]);btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
 
