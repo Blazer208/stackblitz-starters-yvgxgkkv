@@ -470,6 +470,23 @@ async function buildGenericPlan(){
    if(dayIndex===1&&yardMiles>0)entries.push({...pickupStop,kind:'pickup',miles:yardMiles,driveHours:yardHours});
    for(let leg=0;leg<2;leg++){
      const miles=remaining.distance/1609.344,hours=legDriveHours(remaining,avgSpeed);
+     // On the Milwaukee -> Springville corridor, do not treat a 100+ mile
+     // morning delivery drive as nearby receiver staging. Prefer the saved
+     // Utah Pilot, provided it is reachable inside today's driving clock.
+     // This adds an overnight rather than inventing extra legal drive hours.
+     if(leg===0&&dayIndex>1&&miles>=100&&miles<=350&&/Springville,\\s*UT\\b/i.test(deliveryAddress)){
+       const stage={name:'Pilot Travel Center #747 — Springville staging',brand:'Pilot',kind:'rest',address:'1460 N 1750 W, Springville, UT 84663',lat:40.1875538,lng:-111.6415642,source:'Saved Utah receiver-area staging stop; truck entrance not verified'};
+       const stageRoute=await routeThrough([current,stage]);
+       const stageMiles=stageRoute.distance/1609.344,stageHours=legDriveHours(stageRoute,avgSpeed);
+       const stageToDelivery=await routeThrough([stage,deliveryStop]);
+       const deliveryMiles=stageToDelivery.distance/1609.344;
+       if(stageMiles>1&&stageHours<=Math.min(7.75-dayHours,maxHours-dayHours)&&deliveryMiles<=30){
+         stage.miles=stageMiles;stage.driveHours=stageHours;
+         entries.push(stage);stops.push(stage);dayHours+=stageHours;dayMiles+=stageMiles;current=stage;
+         remaining=stageToDelivery;
+         break;
+       }
+     }
      if(hours<(leg===0?7.75-dayHours:7.75)&&dayHours+hours<=maxHours){
        if(dayIndex===1&&leg===0&&document.getElementById('require300').checked&&miles<300)throw new Error('Delivery is within 300 miles of pickup; this trip cannot meet the selected first-stop minimum. Review with dispatch.');
        const end={...deliveryStop,miles,driveHours:hours};entries.push(end);stops.push(end);dayHours+=hours;dayMiles+=miles;current=end;break;
