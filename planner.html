@@ -350,13 +350,15 @@ async function routeStrideAddressCandidates(origin,destination,kind,network,targ
  for(const s of eligible){const state=s.address.match(statePattern)?.[1];if(!state||!states.has(state))continue;if(!grouped.has(state))grouped.set(state,[]);grouped.get(state).push(s)}
  const shortlist=[];
  const groups=[...grouped.values()];
- for(let index=0;shortlist.length<10&&groups.some(g=>index<g.length);index++)for(const g of groups){if(g[index])shortlist.push(g[index]);if(shortlist.length>=10)break}
+ // Use the actual uploaded address book, not just the first ten records.
+ // Interleave corridor states so a single state's listings cannot monopolize lookup.
+ for(let index=0;shortlist.length<64&&groups.some(g=>index<g.length);index++)for(const g of groups){if(g[index])shortlist.push(g[index]);if(shortlist.length>=64)break}
  const results=[];
  window.routeStrideGeocodes=window.routeStrideGeocodes||new Map();
  for(const s of shortlist){
   let geo=window.routeStrideGeocodes.get(s.address);
   if(geo===undefined){try{geo=await geocode(s.address)}catch(e){geo=null}window.routeStrideGeocodes.set(s.address,geo)}
-  if(!geo||corridorDistanceMiles(geo,origin,destination)>80)continue;
+  if(!geo||corridorDistanceMiles(geo,origin,destination)>100)continue;
   results.push({...s,lat:geo.lat,lng:geo.lng,source:'Route Stride uploaded address directory — geocoded; entrance not independently verified'});
  }
  return results;
