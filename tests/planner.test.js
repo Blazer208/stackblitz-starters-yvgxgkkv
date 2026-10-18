@@ -2,13 +2,14 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-const {STOP_POLICY,brandOf,allowedBrand,normalizeMatches}=require('../stop-policy');
+const {STOP_POLICY,stopWindow,brandOf,allowedBrand,normalizeMatches}=require('../stop-policy');
 const script=fs.readFileSync(require('node:path').join(__dirname,'../planner.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
 function fixture(distance=1100){
  const values={manualStops:'',yard:'Start',pickup:'Start',delivery:'End',trip:'127532',driver:'Test',truck:'1',trailer:'1',maxHours:'10',avgSpeed:'55',cycle:'60',network:'Pilot / Flying J only',notes:'I-80',departureTime:'2026-10-13T06:00',deliveryTime:'2026-10-20T08:00',overallFeet:'75',widthInches:'102',heightInches:'162',grossWeight:'80000',trailerFeet:'53'};
  const elements={};for(const [id,value]of Object.entries(values))elements[id]={value};
  for(const id of ['status','generated','plan','verificationHost','verifiedNavigation','generateBtn'])elements[id]={innerHTML:'',textContent:'',disabled:false,prepend(){},scrollIntoView(){}};
- const context=vm.createContext({brandOf,allowedBrand,document:{getElementById:id=>elements[id],createElement:()=>({}),querySelector:()=>({before(){}})},sessionStorage:{getItem:()=>null},window:{},console,AbortSignal,setTimeout,Blob});
+ elements.require300={checked:false};
+ const context=vm.createContext({STOP_POLICY,stopWindow,brandOf,allowedBrand,document:{getElementById:id=>elements[id],createElement:()=>({}),querySelector:()=>({before(){}})},sessionStorage:{getItem:()=>null},window:{},console,AbortSignal,setTimeout,Blob});
  vm.runInContext(script,context);
  const actualSelect=context.selectTruckStop;
  context.geocode=async address=>({lat:40,lng:address==='End'?distance:0});
@@ -21,7 +22,7 @@ function fixture(distance=1100){
  return {context,elements,actualSelect};
 }
 test('default stop spacing and approved fuel networks',()=>{
- assert.deepEqual(STOP_POLICY,{minMiles:200,targetMiles:250,maxMiles:300});
+ assert.deepEqual(STOP_POLICY,{minMiles:250,targetMiles:300,maxMiles:350});
  assert.equal(brandOf('Flying J Travel Center #123'),'Flying J');
  assert.equal(allowedBrand("Love's",'break','Pilot / Flying J only'),false);
  assert.equal(allowedBrand("Love's",'rest','Pilot / Flying J only'),true);
