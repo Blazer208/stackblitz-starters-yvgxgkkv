@@ -389,13 +389,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network,targetMiles})});
    if(response.ok){const data=await response.json();candidates.push(...(data.stops||[]));}
  }catch(e){console.warn('Automatic stop directory unavailable:',e.message);}
- let openDirectoryError='';
- try{
-   const r=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
-   if(!r.ok)throw new Error('Open truck-stop directory temporarily unavailable');
-   const j=await r.json();
-   candidates.push(...(j.stops||[]).map(p=>({...p,publicDirectory:true})));
- }catch(e){openDirectoryError=e.message;}
+ // Use the supplied address books directly; external open-data POI searches time out too often.
  // Also consider uploaded Pilot/Flying J, Love's, and TA/Petro addresses.
  // Keep the geocoding shortlist bounded to avoid overloading public geocoders.
  try{candidates.push(...await routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed));}catch(e){console.warn('Uploaded address directory lookup:',e.message);}
@@ -426,21 +420,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  }
  eligible.sort((a,b)=>(Math.abs(a.miles-targetMiles)+Math.min(a.detourMiles,35)*2)-(Math.abs(b.miles-targetMiles)+Math.min(b.detourMiles,35)*2));
  if(eligible.length)return eligible[0];
- // Only fall back to licensed POI discovery when the free directory cannot
- // supply a candidate in the requested window. No invented stop locations.
- try{
-   const r=await fetchTimed('/api/truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),profile:truckProfile(),kind,network,minMiles,maxMiles})});
-   if(r.ok){
-     const j=await r.json();
-     const paid=(j.stops||[]).filter(p=>p.miles>=minMiles&&p.miles<=maxMiles).sort((a,b)=>Math.abs(a.miles-targetMiles)-Math.abs(b.miles-targetMiles));
-     for(const stop of paid.slice(0,4)){
-       let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
-       const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
-       if(miles>=Math.max(minMiles,kind==='rest'?15:1)&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)return {...stop,kind,miles,driveHours:hours};
-     }
-   }
- }catch(e){console.warn('Optional licensed stop directory unavailable:',e.message);}
-
+ // The supplied address books are the stop source. Do not call a licensed POI provider.
  throw new Error('No approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' estimated road miles and available hours.');
 }
 async function buildGenericPlan(){
