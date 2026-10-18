@@ -24,10 +24,10 @@ test('server blocks direct planner/API access, uses real sessions, and persists 
   assert.equal((await fetch(base+'/tests/auth.test.js')).status,404);
   const signup=await post('/api/auth/signup',{name:'Integration Tester',email:'integration@example.com',password:'A unique integration password 90247',invite:setup});assert.equal(signup.status,201);
   const cookie=signup.headers.get('set-cookie').split(';')[0];
-  const authorized=await fetch(base+'/planner.html',{headers:{Cookie:cookie}});assert.equal(authorized.status,200);assert.match(await authorized.text(),/200–300 MILE LEGS/);
+  const authorized=await fetch(base+'/planner.html',{headers:{Cookie:cookie}});assert.equal(authorized.status,200);assert.match(await authorized.text(),/Dispatcher Trip Planner/);
   assert.match(authorized.headers.get('content-security-policy'),/frame-ancestors 'none'/);
   assert.equal((await post('/api/truck-route',{points:[]},cookie,'https://attacker.example')).status,403);
-  assert.equal((await post('/api/truck-route',{points:[]},cookie)).status,503);
+  assert.equal((await post('/api/truck-route',{points:[]},cookie)).status,400);
   await stop();await start();
   assert.equal((await fetch(base+'/api/auth/me',{headers:{Cookie:cookie}})).status,200);
   assert.equal((await post('/api/auth/login',{email:'integration@example.com',password:'A unique integration password 90247'})).status,200);
