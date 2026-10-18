@@ -75,3 +75,23 @@ test('manual fuel stops outside company network or range are rejected',async()=>
  vm.runInContext('manualStopQueue=[{name:"Pilot Travel Center",address:"100 Truck Rd"}];',context);
  await assert.rejects(actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55),/400.0/);
 });
+
+test('Milwaukee Springville planner stages in Utah before next-morning delivery instead of 205-mile final leg',async()=>{
+ const {context,elements}=fixture(1455);
+ elements.delivery.value='2224 W 500 N, Springville, UT 84663';
+ context.geocode=async address=>({lat:40,lng:/Springville/.test(address)?1455:0});
+ context.routeThrough=async points=>{
+   const mile=p=>p.name?.includes('Springville staging')?1445:p.lng;
+   let distance=0;for(let i=1;i<points.length;i++)distance+=Math.abs(mile(points[i])-mile(points[i-1]));
+   return {distance:distance*1609.344,duration:distance/55*3600};
+ };
+ await context.buildGenericPlan();
+ const stops=Array.from(vm.runInContext('lastPlanStops',context));
+ const stage=stops.at(-2),delivery=stops.at(-1);
+ assert.equal(stage.kind,'rest');
+ assert.match(stage.address,/Springville, UT/);
+ assert.equal(delivery.kind,'delivery');
+ assert.ok(delivery.miles<30);
+ assert.ok(stage.driveHours<8);
+ assert.match(elements.generated.innerHTML,/DAY 4/);
+});
