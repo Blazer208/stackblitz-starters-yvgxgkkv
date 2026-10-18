@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const {normalizeMatches,brandOf,allowedBrand}=require('./stop-policy');
 const stopDirectory=require('./stop-directory');
+const automaticStopEngine=require('./automatic-stop-engine');
 const {createAuth}=require('./auth');
 const auth=createAuth({dbPath:process.env.AUTH_DB_PATH||'/data/accounts.sqlite',origin:process.env.APP_ORIGIN,setupHash:process.env.OWNER_SETUP_TOKEN_HASH,setupExpires:process.env.OWNER_SETUP_EXPIRES?Number(process.env.OWNER_SETUP_EXPIRES):Date.now()+86400000});
 
@@ -153,7 +154,7 @@ const server = http.createServer(async (req, res) => {
   if(req.url?.startsWith('/api/auth/')||req.url?.startsWith('/login')||req.url?.startsWith('/signup'))res.setHeader('Cache-Control','no-store');
   let urlPath;try{urlPath=decodeURIComponent((req.url||'/').split('?')[0]);}catch(e){return json(res,400,{error:'Invalid URL'});}
   try{if(await auth.handle(req,res,urlPath))return;}catch(e){return json(res,503,{error:'Account service unavailable'});}
-  if(urlPath==='/api/truck-route'||urlPath==='/api/truck-stops'||urlPath==='/api/osm-truck-stops'){
+  if(urlPath==='/api/truck-route'||urlPath==='/api/truck-stops'||urlPath==='/api/osm-truck-stops'||urlPath==='/api/automatic-stop-candidates'){
     const user=auth.userFor(req);if(!user)return json(res,401,{error:'Sign in required'});
     if(req.method==='POST'&&!auth.sameOrigin(req))return json(res,403,{error:'Invalid request origin'});
     if(!auth.limit('routing:'+user.id,100,3600000))return json(res,429,{error:'Your hourly planning limit has been reached. Try later.'});
@@ -178,6 +179,12 @@ const server = http.createServer(async (req, res) => {
       .filter(x=>Array.isArray(x)&&x.length===3&&x[0]!=='State'&&x.every(v=>typeof v==='string'&&v.length>0))
       .map(([state,city,address])=>({name:'Pilot / Flying J - '+city,brand:'Pilot / Flying J',state,city,address,source:'User-supplied StoresHours.com listings',coordinatesPending:true,verifiedEntrance:false}));
     return json(res,200,{count:entries.length,states:new Set(entries.map(x=>x.state)).size,stops:entries,notice:'Address-only listings; coordinates and brand subtype not verified for automatic routing'});
+  }
+  if(urlPath==='/api/automatic-stop-candidates'){
+    if(req.method!=='POST')return json(res,405,{error:'Use POST'});
+    try{let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>32768)return json(res,413,{error:'Request too large'});}
+      return json(res,200,automaticStopEngine.candidates(JSON.parse(raw)));
+    }catch(e){return json(res,400,{error:String(e.message).slice(0,160)});}
   }
   if (urlPath === '/api/truck-route') return truckRoute(req,res);
   if (urlPath === '/api/truck-stops') return truckStops(req,res);
