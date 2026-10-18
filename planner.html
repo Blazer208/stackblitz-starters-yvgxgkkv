@@ -150,7 +150,6 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   <div style="margin-top:12px"><label>Company route / highways</label><textarea id="notes">I-94 → US-151 → I-80 → I-15 → local to Springville</textarea></div>
   <div class="grid" style="margin-top:12px">
    <div><label>Approved fuel network</label><select id="network"><option>Pilot / Flying J only</option><option>Pilot / Flying J + Love's</option><option>Pilot / Flying J + TA / Petro</option><option>Pilot / Flying J + Love's + TA / Petro</option><option>All approved networks</option></select></div>
-   <div><label>Daily strategy</label><select id="strategy"><option>First break near 300 miles — then use remaining drive hours</option></select></div>
   </div>
   <div class="actions">
    <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
@@ -158,7 +157,6 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
   <div style="margin-top:12px"><label style="display:flex;gap:8px;align-items:center"><input id="require300" type="checkbox" style="width:auto">This load requires at least 300 truck-route miles before the first stop after pickup</label><div class="small muted">Use only when dispatch requires it. If the available clock cannot support the minimum, planning stops for dispatch review.</div></div>
-  <div class="notice small"><b>Daily strategy:</b> Target the first break/fuel stop near 300 truck-route miles (normally 250–350), then overnight or delivery within remaining daily drive hours. Actual routed hours and available clock control; five hours is an estimate, not a fixed cutoff. The 300-mile minimum applies only to the first stop after pickup when selected.</div>
   <div class="small muted">Dispatcher inputs now flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
  </div>
 
