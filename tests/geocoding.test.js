@@ -33,3 +33,15 @@ test('print report prominently warns when road network has not checked truck res
  assert.match(code,/PLANNING ESTIMATE — NOT A VERIFIED TRUCK-SAFE ROUTE/);
  assert.match(code,/bridge height, axle\/weight limits/);
 });
+
+test('pre-geocoded TA/Petro candidate with full state name is accepted without public geocoding',async()=>{
+ const ctx=run(correct);
+ ctx.loadRouteStrideDirectories=async()=>[{name:'TA Nebraska',brand:'TA',address:'400 Road, North Platte, Nebraska 69101',lat:41.13,lng:-100.75}];
+ ctx.geocode=async()=>{throw Error('Unexpected geocoding request')};
+ const result=await ctx.routeStrideAddressCandidates(
+  {lat:41.1,lng:-101.5,address:'100 Route, North Platte, NE 69101'},
+  {lat:41.1,lng:-100,address:'200 Route, North Platte, NE 69101'},
+  'rest','Pilot / Flying J only',75,55);
+ assert.equal(result.length,1);
+ assert.equal(result[0].brand,'TA');
+});
