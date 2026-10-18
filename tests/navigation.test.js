@@ -87,3 +87,27 @@ test('overnight stop selection never repeats the current stop at zero miles',asy
  assert.equal(selected.name,'Flying J ahead');
  assert.ok(selected.miles>=15);
 });
+
+test('Trucker Path mobile deep link carries every one of nine Milwaukee trip coordinates in order',()=>{
+ const {context}=fixture();
+ const full=[...stops.slice(0,1),...stops,...stops.slice(-2)];
+ context.full=full;
+ const url=vm.runInContext('truckerPathUrl(full)',context);
+ assert.ok(url.startsWith('truckerpath://cal_route?'));
+ const q=new URL(url).searchParams;
+ assert.equal(q.get('saddr'),full[0].lat+','+full[0].lng);
+ assert.equal(q.get('daddr'),full.at(-1).lat+','+full.at(-1).lng);
+ assert.deepEqual(q.get('paddr').split('|'),full.slice(1,-1).map(p=>p.lat+','+p.lng));
+});
+test('Hammer mobile handoff retains all nine trip stops across numbered overlapping legs',()=>{
+ const {context}=fixture();
+ const full=[...stops,...stops.slice(0,3)];
+ context.full=full;
+ const legs=Array.from(vm.runInContext('hammerRouteSegments(full)',context));
+ assert.equal(legs.length,2);
+ assert.ok(legs.every(l=>l.url.startsWith('https://hammerapp.com/app/route/')));
+ assert.equal(legs[0].count,5);
+ assert.equal(legs[1].count,5);
+ const coords=legs.flatMap((l,i)=>l.url.split('/route/')[1].split('/').map(decodeURIComponent).slice(i?1:0));
+ assert.deepEqual(coords,full.map(p=>p.lat+','+p.lng));
+});
