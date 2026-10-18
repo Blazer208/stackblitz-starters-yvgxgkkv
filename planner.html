@@ -241,7 +241,10 @@ function changeVerifiedStop(i){
 function checkVerifiedStop(i,yes){if(yes)confirmedStops.add(i);else confirmedStops.delete(i);verifiedTripSignature='';refreshStopVerification();}
 function refreshStopVerification(){
  const host=document.getElementById('verificationHost');if(!host)return;
- host.innerHTML='<div class="notice small">Stops selected automatically from supplied directories. Road mileage is an estimate.</div>';return;
+ host.innerHTML='<div class="notice small">Stops selected automatically from supplied directories. Road mileage is an estimate.</div>';
+ const navigation=document.getElementById('verifiedNavigation');
+ if(navigation)navigation.innerHTML=lastPlanStops.length>=2?renderNavigationLinks():'';
+ return;
  const all=lastPlanStops.length>0&&confirmedStops.size===lastPlanStops.length;
  const cards=lastPlanStops.map((s,i)=>`<div class="stop"><div class="stopTitle">${i+1}. ${esc(s.name)}</div><div class="addr">${esc(s.address)}</div><div class="meta">Truck entrance: ${esc(s.truckEntrance||'Not separately verified')} • Navigation: ${s.lat!=null?esc(s.lat+', '+s.lng):'Street address only'}</div><div class="actions no-print"><button type="button" class="btn secondary" onclick="changeVerifiedStop(${i})">Correct name / address / truck entrance</button><label style="display:flex;align-items:center;gap:7px"><input type="checkbox" style="width:auto" ${confirmedStops.has(i)?'checked':''} onchange="checkVerifiedStop(${i},this.checked)">I verified this stop and truck access</label></div></div>`).join('');
  host.innerHTML=`<div class="day" style="border-color:var(--amber)"><h3>VERIFY STOPS BEFORE NAVIGATION</h3><div class="notice small">Check the facility's official address and actual truck entrance against dispatch/operator records. A nearby business label is not proof. Edited stops lose their old GPS pin to prevent incorrect handoffs.</div><div class="meta">${confirmedStops.size} of ${lastPlanStops.length} manually confirmed</div>${cards}<div class="actions no-print"><button class="btn good" type="button" ${all?'':'disabled'} onclick="unlockNavigation()">Generate QR codes and navigation buttons</button></div></div>`;
@@ -260,8 +263,8 @@ function renderNavigationLinks(){
  const hammerQrs=hammerSegments.map((s,i)=>`<div class="qr"><img alt="Hammer leg ${i+1} QR code" src="${qrUrl(s.url)}"><b>Hammer Leg ${i+1} QR</b></div>`).join('');
  const hammerDetails=hammerSegments.map((s,i)=>`<div class="meta">Leg ${i+1}: ${esc(s.from)} → ${esc(s.to)} (${s.count} locations)</div>`).join('');
  return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip ${esc(val("trip")||"UNNUMBERED")}</span></div>
- <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a>${appleLegLinks(lastPlanStops)}<a class="btn secondary" href="${truckerPathUrl(lastPlanStops)}">Open in Trucker Path (verify stops)</a>${hammerActions}<button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
- <div class="qrrow no-print"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div><div class="qr"><img src="${qrUrl(truckerPathUrl(lastPlanStops))}"><b>Trucker Path QR</b></div>${hammerQrs}</div>
+ <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a>${appleLegLinks(lastPlanStops)}<a class="btn secondary" href="${truckerPathUrl(lastPlanStops)}">Open in Trucker Path</a>${hammerActions}<button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
+ <div class="qrrow"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div><div class="qr"><img src="${qrUrl(truckerPathUrl(lastPlanStops))}"><b>Trucker Path QR</b></div>${hammerQrs}</div>
  <div class="notice small"><b>Hammer:</b> Each linked leg supports up to five waypoints. Open legs in numbered order. This plan has ${lastPlanStops.length} locations, including addresses without GPS coordinates. ${hammerDetails} Verify all locations and your truck settings in Hammer before starting. <b>Apple Maps:</b> Apple Maps web links cannot reliably import all intermediate stops. Use the individual Stop links in order; they are not one multi-stop route. Confirm destination name, entrance, and truck restrictions in your truck navigation app.</div></div>`;
 }
 async function fetchTimed(url,options={}){
@@ -406,14 +409,14 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  // Pre-rank geographically before expensive truck-routing calls. The server
  // limits routing requests per minute; exhausting that budget previously made
  // all later stops appear unavailable and forced a preliminary plan.
- const nearCandidates=candidates.filter(s=>allowedBrand(brandOf(s.name),kind,network)&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lng))
+ const nearCandidates=candidates.filter(s=>allowedBrand(brandOf(s.name),kind,network)&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lng)&&Math.hypot((+s.lat-origin.lat)*69,(+s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))>8)
   .map(s=>({...s,approxMiles:Math.hypot((s.lat-origin.lat)*69,(s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))}))
   .filter(s=>s.approxMiles<=maxMiles*1.25+20&&s.approxMiles>=Math.max(0,minMiles*.55-20))
   .sort((a,b)=>Math.abs(a.approxMiles-targetMiles)-Math.abs(b.approxMiles-targetMiles));
  for(const stop of nearCandidates.slice(0,10)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
-   if(!(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
+   if(!(miles>=Math.max(minMiles,kind==='rest'?15:1)&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
    let detourMiles=Infinity;
    if(directMiles!==null){
      try{const via=await routeThrough([origin,stop,destination]);detourMiles=Math.max(0,via.distance/1609.344-directMiles);}catch(e){continue;}
@@ -433,7 +436,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
      for(const stop of paid.slice(0,4)){
        let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
        const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
-       if(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)return {...stop,kind,miles,driveHours:hours};
+       if(miles>=Math.max(minMiles,kind==='rest'?15:1)&&miles<=maxMiles&&hours<=hoursLeft&&hours<8)return {...stop,kind,miles,driveHours:hours};
      }
    }
  }catch(e){console.warn('Optional licensed stop directory unavailable:',e.message);}
@@ -635,10 +638,10 @@ function printProfessionalPlan(){
  const metric=(i)=>metrics[i]?metrics[i].textContent.trim():'Not available';
  const weight=val('weight')?val('weight')+' lb':'Not entered';
  const report='<div class="prHead"><div><h1>◢ ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN</div></div><div><b>Trip '+esc(val('trip')||'UNNUMBERED')+'</b><div>'+esc(stops[0].name||'Origin')+' → '+esc(stops[stops.length-1].name||'Delivery')+'</div><div>Depart: '+esc(date(val('departureTime')))+'</div><div>Deliver: '+esc(date(val('deliveryTime')))+'</div></div></div>'+
- '<div class="prStats"><div class="prStat">Truck Route Miles<b>'+esc(metric(0))+'</b></div><div class="prStat">Drive Estimate<b>'+esc(metric(1))+'</b></div><div class="prStat">Load Weight<b>'+esc(weight)+'</b></div><div class="prStat">Trip Days<b>'+esc(metric(2))+'</b></div><div class="prStat">Driver / Truck<b>'+esc(val('driver')||'Unassigned')+' / '+esc(val('truck')||'—')+'</b></div></div>'+
- '<div class="prLayout"><div>'+days+'</div><aside class="prSide">'+map+'<h3>Navigation Exports</h3><div class="prCodes">'+qr(googleWholeTripUrl(stops),'Google Maps')+qr(appleWholeTripUrl(stops),'Apple Delivery')+qr(truckerPathUrl(stops),'Trucker Path')+'</div><h3>Trip Notes & Strategy</h3><div><b>Fuel network:</b> '+esc(val('network'))+'</div><div><b>Highways:</b> '+esc(val('notes')||'Verify with dispatch')+'</div><div><b>Strategy:</b> '+esc(val('strategy'))+'</div><div><b>Truck / Trailer:</b> '+esc(val('truck')||'—')+' / '+esc(val('trailer')||'—')+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY — stops not assigned. NOT DISPATCH READY.':'Stop positions, parking, HOS and truck entrances require driver/dispatch verification.')+'</div><h3>Garmin GPX</h3><div>Download the Garmin GPX separately in the planner after verifying stops. This report does not contain a GPX download QR.</div><h3>Truck Safety</h3><div>Google/Apple Maps are not truck-safe routing tools. Follow posted restrictions and verified commercial truck navigation.</div></aside></div>';
+ '<div class="prStats"><div class="prStat">Estimated Road Miles<b>'+esc(metric(0))+'</b></div><div class="prStat">Drive Estimate<b>'+esc(metric(1))+'</b></div><div class="prStat">Load Weight<b>'+esc(weight)+'</b></div><div class="prStat">Trip Days<b>'+esc(metric(2))+'</b></div><div class="prStat">Driver / Truck<b>'+esc(val('driver')||'Unassigned')+' / '+esc(val('truck')||'—')+'</b></div></div>'+
+ '<div class="prLayout"><div>'+days+'</div><aside class="prSide">'+map+'<h3>Navigation Exports</h3><div class="prCodes">'+qr(googleWholeTripUrl(stops),'Google Maps')+qr(appleWholeTripUrl(stops),'Apple Delivery')+qr(truckerPathUrl(stops),'Trucker Path')+hammerRouteSegments(stops).map((leg,i)=>qr(leg.url,'Hammer Leg '+(i+1))).join('')+'</div><h3>Trip Notes & Strategy</h3><div><b>Fuel network:</b> '+esc(val('network'))+'</div><div><b>Highways:</b> '+esc(val('notes')||'Verify with dispatch')+'</div><div><b>Strategy:</b> '+esc(val('strategy'))+'</div><div><b>Truck / Trailer:</b> '+esc(val('truck')||'—')+' / '+esc(val('trailer')||'—')+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY — stops not assigned. NOT DISPATCH READY.':'Stop positions, parking, HOS and truck entrances require driver/dispatch verification.')+'</div><h3>Garmin GPX</h3><div>Use the Download Whole-Trip Garmin GPX button in the planner or print preview to save the route waypoint file. GPX is a separate file, not a QR code.</div><h3>Truck Safety</h3><div>Google/Apple Maps are not truck-safe routing tools. Follow posted restrictions and verified commercial truck navigation.</div></aside></div>';
  const preview=document.getElementById('printReport');
- preview.innerHTML='<div class="actions no-print" style="margin-bottom:14px"><button type="button" class="btn primary" onclick="window.print()">Print / Save as PDF</button><button type="button" class="btn secondary" onclick="document.getElementById(\'printReport\').classList.remove(\'previewOpen\')">Close Preview</button></div>'+report;
+ preview.innerHTML='<div class="actions no-print" style="margin-bottom:14px"><button type="button" class="btn primary" onclick="window.print()">Print / Save as PDF</button><button type="button" class="btn good" onclick="downloadRouteGPX()">Download Garmin GPX</button><button type="button" class="btn secondary" onclick="document.getElementById(\'printReport\').classList.remove(\'previewOpen\')">Close Preview</button></div>'+report;
  preview.classList.add('previewOpen');
  renderTripMapPins(coords);
  preview.scrollIntoView({behavior:'smooth',block:'start'});
