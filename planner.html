@@ -662,7 +662,14 @@ async function buildPlan(){
    const timing=document.createElement("div");timing.className="notice small";
    timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
    document.getElementById("generated").prepend(timing);
- }catch(e){console.error('Route Stride automatic stop selection failed:',e);if(/Automatic truck-stop selection is unavailable with the current provider access|licensed Trimble POIs Along the Route key|Automatic truck-stop directories unavailable|No verified approved|No approved (?:fuel\/break|overnight) stop fits/i.test(e.message)){try{await buildPreliminaryPlan();}catch(f){document.getElementById("status").innerHTML='<span class="error"><b>Could not build preliminary route:</b> '+esc(f.message)+'</span>';}}else{document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>';}}
+ }catch(e){
+  console.error('Route Stride automatic stop selection failed:',e);
+  // Do not silently replace a failed stop plan with a misleading pickup-to-delivery
+  // route that omits every fuel/break and overnight location.
+  lastPlanStops=[];lastRoute=null;
+  document.getElementById('generated').innerHTML='';
+  document.getElementById('status').innerHTML='<span class="error"><b>Automatic stop selection could not finish:</b> '+esc(e.message)+'. No incomplete navigation or QR codes have been generated. Retry after the stop directory is available.</span>';
+ }
  finally{controls.forEach((c,i)=>c.disabled=previousDisabled[i]);btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
 
