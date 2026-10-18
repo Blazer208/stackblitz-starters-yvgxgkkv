@@ -272,12 +272,23 @@ async function fetchTimed(url,options={}){
 }
 function truckProfile(){return {overallFeet:Number(val("overallFeet")),widthInches:Number(val("widthInches")),heightInches:Number(val("heightInches")),grossWeight:Number(val("grossWeight")),trailerFeet:Number(val("trailerFeet"))};}
 async function geocodeOne(q){
- const u=`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q=${encodeURIComponent(q)}`;
+ const u=`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&q=${encodeURIComponent(q)}`;
  const r=await fetchTimed(u,{headers:{"Accept":"application/json"}});
  if(!r.ok)return null;
  const j=await r.json();
- if(!j.length)return null;
- return {lat:+j[0].lat,lng:+j[0].lon,name:j[0].display_name,matchedQuery:q};
+ if(!Array.isArray(j)||!j.length)return null;
+ const hit=j[0],address=hit.address||{};
+ // Reject a geocoder's first result if it belongs to the wrong state or ZIP.
+ // Never silently route a truck to a same-named street in a different state.
+ const expectedState=String(q).match(/,\\s*([A-Z]{2})\\b/i)?.[1]?.toUpperCase();
+ const actualState=String(address['ISO3166-2-lvl4']||address.state_code||'').toUpperCase().replace(/^US-/,'');
+ if(expectedState&&actualState&&expectedState!==actualState)return null;
+ const expectedZip=String(q).match(/\\b(\\d{5})(?:-\\d{4})?\\s*$/)?.[1];
+ const actualZip=String(address.postcode||'').match(/\\d{5}/)?.[0];
+ if(expectedZip&&actualZip&&expectedZip!==actualZip)return null;
+ const lat=Number(hit.lat),lng=Number(hit.lon);
+ if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return null;
+ return {lat,lng,name:hit.display_name,matchedQuery:q};
 }
 async function geocode(q){
  const raw=String(q||"").trim();
@@ -377,7 +388,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    const direct=await routeThrough([origin,destination]);
    const via=await routeThrough([origin,stop,destination]);
    stop.detourMiles=Math.max(0,(via.distance-direct.distance)/1609.344);
-   if(stop.detourMiles>35)throw new Error(entered.name+' adds '+stop.detourMiles.toFixed(1)+' truck-route detour miles (35-mile maximum). Select a directory stop closer to the delivery corridor.');
+   if(stop.detourMiles>35)throw new Error(entered.name+' adds '+stop.detourMiles.toFixed(1)+' estimated driving-road detour miles (35-mile maximum). Select a directory stop closer to the delivery corridor.');
    stop.verifiedEntrance=false;
    return stop;
  }
@@ -393,10 +404,10 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  // Also consider uploaded Pilot/Flying J, Love's, and TA/Petro addresses.
  // Keep the geocoding shortlist bounded to avoid overloading public geocoders.
  try{candidates.push(...await routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed));}catch(e){console.warn('Uploaded address directory lookup:',e.message);}
- // Check open-data candidates against the commercial-truck routing engine.
+ // Check candidates against the planning road network; truck restrictions are NOT verified.
  // These are candidate facilities, NOT verified truck entrances.
- // Rank eligible locations by extra estimated road miles, not straight-line proximity.
- // This discourages stops across the interstate or far off the driver's corridor.
+ // Rank eligible locations by extra estimated driving-road miles, not straight-line proximity.
+ // This discourages large detours but cannot validate truck access.
  let directMiles=null;
  try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
  const eligible=[];
@@ -414,9 +425,9 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    let detourMiles=Infinity;
    if(directMiles!==null){
      try{const via=await routeThrough([origin,stop,destination]);detourMiles=Math.max(0,via.distance/1609.344-directMiles);}catch(e){continue;}
-     if(detourMiles>35)continue; // avoid excessive diversion from the truck-safe corridor
+     if(detourMiles>35)continue; // avoid excessive detours; truck legality is not established
    }
-   eligible.push({...stop,kind,miles,driveHours:hours,detourMiles,source:'Candidate stop — truck-route corridor checked; verify entrance, brand and interstate access'});
+   eligible.push({...stop,kind,miles,driveHours:hours,detourMiles,source:'Candidate stop — driving-road detour estimated; commercial truck restrictions and entrance unverified'});
  }
  eligible.sort((a,b)=>(Math.abs(a.miles-targetMiles)+Math.min(a.detourMiles,35)*2)-(Math.abs(b.miles-targetMiles)+Math.min(b.detourMiles,35)*2));
  if(eligible.length)return eligible[0];
@@ -617,7 +628,7 @@ function printProfessionalPlan(){
  const metrics=document.querySelectorAll('#generated .summary .metric');
  const metric=(i)=>metrics[i]?metrics[i].textContent.trim():'Not available';
  const weight=val('weight')?val('weight')+' lb':'Not entered';
- const report='<div class="prHead"><div><h1>◢ ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN</div></div><div><b>Trip '+esc(val('trip')||'UNNUMBERED')+'</b><div>'+esc(stops[0].name||'Origin')+' → '+esc(stops[stops.length-1].name||'Delivery')+'</div><div>Depart: '+esc(date(val('departureTime')))+'</div><div>Deliver: '+esc(date(val('deliveryTime')))+'</div></div></div>'+
+ const report='<div class="prWarning"><b>PLANNING ESTIMATE — NOT A VERIFIED TRUCK-SAFE ROUTE.</b> Road mileage uses a general driving network. It does not check bridge height, axle/weight limits, commercial vehicle restrictions, or truck entrances. Do not navigate a commercial truck solely from this plan or its Google/Apple links.</div>'+'<div class="prHead"><div><h1>◢ ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN</div></div><div><b>Trip '+esc(val('trip')||'UNNUMBERED')+'</b><div>'+esc(stops[0].name||'Origin')+' → '+esc(stops[stops.length-1].name||'Delivery')+'</div><div>Depart: '+esc(date(val('departureTime')))+'</div><div>Deliver: '+esc(date(val('deliveryTime')))+'</div></div></div>'+
  '<div class="prStats"><div class="prStat">Estimated Road Miles<b>'+esc(metric(0))+'</b></div><div class="prStat">Drive Estimate<b>'+esc(metric(1))+'</b></div><div class="prStat">Load Weight<b>'+esc(weight)+'</b></div><div class="prStat">Trip Days<b>'+esc(metric(2))+'</b></div><div class="prStat">Driver / Truck<b>'+esc(val('driver')||'Unassigned')+' / '+esc(val('truck')||'—')+'</b></div></div>'+
  '<div class="prLayout"><div>'+days+'</div><aside class="prSide">'+map+'<h3>Navigation Exports</h3><div class="prCodes">'+qr(googleWholeTripUrl(stops),'Google Maps')+qr(appleWholeTripUrl(stops),'Apple Delivery')+qr(truckerPathUrl(stops),'Trucker Path')+hammerRouteSegments(stops).map((leg,i)=>qr(leg.url,'Hammer Leg '+(i+1))).join('')+'</div><h3>Trip Notes & Strategy</h3><div><b>Fuel network:</b> '+esc(val('network'))+'</div><div><b>Highways:</b> '+esc(val('notes')||'Verify with dispatch')+'</div><div><b>Strategy:</b> '+esc(val('strategy'))+'</div><div><b>Truck / Trailer:</b> '+esc(val('truck')||'—')+' / '+esc(val('trailer')||'—')+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY — stops not assigned. NOT DISPATCH READY.':'Stop positions, parking, HOS and truck entrances require driver/dispatch verification.')+'</div><h3>Garmin GPX</h3><div>Use the Download Whole-Trip Garmin GPX button in the planner or print preview to save the route waypoint file. GPX is a separate file, not a QR code.</div><h3>Truck Safety</h3><div>Google/Apple Maps are not truck-safe routing tools. Follow posted restrictions and verified commercial truck navigation.</div></aside></div>';
  const preview=document.getElementById('printReport');
