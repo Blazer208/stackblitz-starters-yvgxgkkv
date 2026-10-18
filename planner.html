@@ -420,7 +420,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    }
  }catch(e){console.warn('Optional licensed stop directory unavailable:',e.message);}
 
- throw new Error('No approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' truck-route miles and available hours. Enter dispatcher-selected stops or use a preliminary plan.');
+ throw new Error('No approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' truck-route miles and available hours.');
 }
 async function buildGenericPlan(){
  const status=document.getElementById('status'),gen=document.getElementById('generated');
@@ -644,7 +644,7 @@ async function buildPlan(){
    const timing=document.createElement("div");timing.className="notice small";
    timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
    document.getElementById("generated").prepend(timing);
- }catch(e){if(/Automatic truck-stop selection is unavailable with the current provider access|licensed Trimble POIs Along the Route key|Automatic truck-stop directories unavailable|No verified approved/i.test(e.message)){try{await buildPreliminaryPlan();}catch(f){document.getElementById("status").innerHTML='<span class="error"><b>Could not build preliminary route:</b> '+esc(f.message)+'</span>';}}else{document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>';}}
+ }catch(e){if(/Automatic truck-stop selection is unavailable with the current provider access|licensed Trimble POIs Along the Route key|Automatic truck-stop directories unavailable|No verified approved|No approved (?:fuel\/break|overnight) stop fits/i.test(e.message)){try{await buildPreliminaryPlan();}catch(f){document.getElementById("status").innerHTML='<span class="error"><b>Could not build preliminary route:</b> '+esc(f.message)+'</span>';}}else{document.getElementById("status").innerHTML='<span class="error"><b>Could not build route:</b> '+esc(e.message)+'</span>';}}
  finally{controls.forEach((c,i)=>c.disabled=previousDisabled[i]);btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
 
