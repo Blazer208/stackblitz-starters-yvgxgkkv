@@ -7,8 +7,8 @@ function stopWindow(kind,hoursLeft,speed,require300=false){
  if(require300&&maxMiles<300)throw new Error('The first-stop 300-mile minimum cannot fit the available driving hours. Review the load requirement with dispatch.');
  if(maxMiles<1)throw new Error('No driving time remains for another leg.');
  // Preferred break mileage is a target; overnights may be closer when the remaining clock is short.
- const minMiles=require300?300:kind==='break'?Math.min(250,Math.max(0,maxMiles-100)):0;
- if(maxMiles<=minMiles)throw new Error('No search window remains for a suitable stop within the available hours.');
+ const minMiles=require300?300:0; // 300-mile preference is a target, not a mandatory minimum unless dispatch explicitly requires it.
+ if(maxMiles<minMiles||maxMiles===0)throw new Error('No search window remains for a suitable stop within the available hours.');
  return {minMiles,maxMiles,targetMiles:kind==='break'?Math.min(300,maxMiles):Math.max(0,maxMiles-25)};
 }
 function brandOf(name) {
