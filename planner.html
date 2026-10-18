@@ -410,7 +410,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    }
    eligible.push({...stop,kind,miles,driveHours:hours,detourMiles,source:'Candidate stop — truck-route corridor checked; verify entrance, brand and interstate access'});
  }
- eligible.sort((a,b)=>a.detourMiles-b.detourMiles||Math.abs(a.miles-targetMiles)-Math.abs(b.miles-targetMiles));
+ eligible.sort((a,b)=>(Math.abs(a.miles-targetMiles)+Math.min(a.detourMiles,35)*2)-(Math.abs(b.miles-targetMiles)+Math.min(b.detourMiles,35)*2));
  if(eligible.length)return eligible[0];
  // Only fall back to licensed POI discovery when the free directory cannot
  // supply a candidate in the requested window. No invented stop locations.
