@@ -350,7 +350,7 @@ async function routeStrideAddressCandidates(origin,destination,kind,network,targ
  for(const s of eligible){const state=s.address.match(statePattern)?.[1];if(!state||!states.has(state))continue;if(!grouped.has(state))grouped.set(state,[]);grouped.get(state).push(s)}
  const shortlist=[];
  const groups=[...grouped.values()];
- for(let index=0;shortlist.length<24&&groups.some(g=>index<g.length);index++)for(const g of groups){if(g[index])shortlist.push(g[index]);if(shortlist.length>=24)break}
+ for(let index=0;shortlist.length<10&&groups.some(g=>index<g.length);index++)for(const g of groups){if(g[index])shortlist.push(g[index]);if(shortlist.length>=10)break}
  const results=[];
  window.routeStrideGeocodes=window.routeStrideGeocodes||new Map();
  for(const s of shortlist){
@@ -397,7 +397,14 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  let directMiles=null;
  try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
  const eligible=[];
- for(const stop of candidates.filter(s=>allowedBrand(brandOf(s.name),kind,network)).slice(0,72)){
+ // Pre-rank geographically before expensive truck-routing calls. The server
+ // limits routing requests per minute; exhausting that budget previously made
+ // all later stops appear unavailable and forced a preliminary plan.
+ const nearCandidates=candidates.filter(s=>allowedBrand(brandOf(s.name),kind,network)&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lng))
+  .map(s=>({...s,approxMiles:Math.hypot((s.lat-origin.lat)*69,(s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))}))
+  .filter(s=>s.approxMiles<=maxMiles*1.25+20&&s.approxMiles>=Math.max(0,minMiles*.55-20))
+  .sort((a,b)=>Math.abs(a.approxMiles-targetMiles)-Math.abs(b.approxMiles-targetMiles));
+ for(const stop of nearCandidates.slice(0,10)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
    if(!(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
