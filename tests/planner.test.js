@@ -69,9 +69,9 @@ test('dispatcher-selected stop is checked with actual truck-route miles',async()
  assert.equal(stop.miles,250);assert.equal(stop.kind,'break');
 });
 test('manual fuel stops outside company network or range are rejected',async()=>{
- const {context,actualSelect}=fixture();context.geocode=async()=>({lat:40,lng:350});
+ const {context,actualSelect}=fixture();context.geocode=async()=>({lat:40,lng:400});
  vm.runInContext('manualStopMode=true;manualStopQueue=[{name:"Love\'s Travel Stop",address:"100 Truck Rd"}];',context);
  await assert.rejects(actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55),/approved/);
  vm.runInContext('manualStopQueue=[{name:"Pilot Travel Center",address:"100 Truck Rd"}];',context);
- await assert.rejects(actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55),/350.0/);
+ await assert.rejects(actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55),/400.0/);
 });
