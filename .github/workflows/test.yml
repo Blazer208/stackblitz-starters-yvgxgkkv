@@ -22,3 +22,16 @@ jobs:
           node --check stop-policy.js
       - name: Automated regression tests
         run: npm test
+      - name: Production anonymous HTTP smoke tests
+        run: |
+          set -eu
+          base='https://route-stride-live-production-b6a0.up.railway.app'
+          homepage="$(curl --retry 2 --max-time 20 -sS -o /tmp/route-stride-home.html -w '%{http_code}' "$base/")"
+          test "$homepage" = '200'
+          grep -qi 'Dispatch' /tmp/route-stride-home.html
+          login="$(curl --retry 2 --max-time 20 -sS -o /tmp/route-stride-login.html -w '%{http_code}' "$base/login.html")"
+          test "$login" = '200'
+          planner="$(curl --retry 2 --max-time 20 -sS -o /dev/null -w '%{http_code}' "$base/planner.html")"
+          test "$planner" = '302'
+          api="$(curl --retry 2 --max-time 20 -sS -o /dev/null -w '%{http_code}' "$base/api/truck-route")"
+          test "$api" = '401'
