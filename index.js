@@ -109,7 +109,7 @@ async function truckRoute(req,res){
   if(height<60||height>180||width<60||width>102||weight<1000||weight>80000||trailer<1||trailer>53||overall<=trailer||overall>100||![height,width,weight,trailer,overall].every(Number.isFinite))return json(res,400,{error:'Invalid truck profile'});
   const coords=points.map(p=>p.lng+','+p.lat).join(';');
   const key=JSON.stringify([coords,height,width,weight,trailer,overall]);if(routeCache.has(key))return json(res,200,routeCache.get(key));
-  if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}if(++quotaCalls>100)return json(res,429,{error:'Routing request limit reached'});
+  if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}if(++quotaCalls>1500)return json(res,429,{error:'Road routing is temporarily busy. Please retry later.'});
   // Public OSRM driving network provides planning mileage only; it does NOT apply truck restrictions.
   const upstream=await fetch('https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=false&steps=false',{signal:AbortSignal.timeout(25000),headers:{'User-Agent':'RouteStride/1.0 (trip planning estimates)'}});
   if(!upstream.ok)return json(res,502,{error:'Planning road network temporarily unavailable'});
@@ -135,8 +135,8 @@ const server = http.createServer(async (req, res) => {
   if(urlPath==='/api/truck-route'||urlPath==='/api/truck-stops'||urlPath==='/api/osm-truck-stops'||urlPath==='/api/automatic-stop-candidates'){
     const user=auth.userFor(req);if(!user)return json(res,401,{error:'Sign in required'});
     if(req.method==='POST'&&!auth.sameOrigin(req))return json(res,403,{error:'Invalid request origin'});
-    if(!auth.limit('routing:'+user.id,100,3600000))return json(res,429,{error:'Your hourly planning limit has been reached. Try later.'});
-    if(!auth.limit('routing-burst:'+user.id,40,60000))return json(res,429,{error:'Too many planning requests. Try shortly.'});
+    if(!auth.limit('routing:'+user.id,800,3600000))return json(res,429,{error:'Your hourly planning limit has been reached. Try later.'});
+    if(!auth.limit('routing-burst:'+user.id,180,60000))return json(res,429,{error:'Too many planning requests. Try shortly.'});
   }
   if(urlPath==='/api/ta-petro-directory'){
     if(req.method!=='GET')return json(res,405,{error:'Use GET'});
