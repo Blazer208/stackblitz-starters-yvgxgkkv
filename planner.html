@@ -352,7 +352,7 @@ async function routeStrideAddressCandidates(origin,destination,kind,network,targ
  for(const s of eligible){const state=s.address.match(statePattern)?.[1];if(!state||!states.has(state))continue;if(!grouped.has(state))grouped.set(state,[]);grouped.get(state).push(s)}
  const shortlist=[];
  const groups=[...grouped.values()];
- for(let index=0;shortlist.length<48&&groups.some(g=>index<g.length);index++)for(const g of groups){if(g[index])shortlist.push(g[index]);if(shortlist.length>=48)break}
+ for(let index=0;shortlist.length<24&&groups.some(g=>index<g.length);index++)for(const g of groups){if(g[index])shortlist.push(g[index]);if(shortlist.length>=24)break}
  const results=[];
  window.routeStrideGeocodes=window.routeStrideGeocodes||new Map();
  for(const s of shortlist){
