@@ -280,11 +280,11 @@ async function geocodeOne(q){
  const hit=j[0],address=hit.address||{};
  // Reject a geocoder's first result if it belongs to the wrong state or ZIP.
  // Never silently route a truck to a same-named street in a different state.
- const expectedState=String(q).match(/,\\s*([A-Z]{2})\\b/i)?.[1]?.toUpperCase();
+ const expectedState=String(q).match(/,\s*([A-Z]{2})\b/i)?.[1]?.toUpperCase();
  const actualState=String(address['ISO3166-2-lvl4']||address.state_code||'').toUpperCase().replace(/^US-/,'');
  if(expectedState&&actualState&&expectedState!==actualState)return null;
- const expectedZip=String(q).match(/\\b(\\d{5})(?:-\\d{4})?\\s*$/)?.[1];
- const actualZip=String(address.postcode||'').match(/\\d{5}/)?.[0];
+ const expectedZip=String(q).match(/\b(\d{5})(?:-\d{4})?\s*$/)?.[1];
+ const actualZip=String(address.postcode||'').match(/\d{5}/)?.[0];
  if(expectedZip&&actualZip&&expectedZip!==actualZip)return null;
  const lat=Number(hit.lat),lng=Number(hit.lon);
  if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return null;
