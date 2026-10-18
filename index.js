@@ -99,47 +99,25 @@ async function osmTruckStops(req,res){
  }catch(e){console.error('Public stop lookup failed',String(e.message).slice(0,120));return json(res,503,{error:'Public truck-stop directory unavailable; use dispatcher-selected stops'});}
 }
 
-async function truckRoute(req, res) {
-  if (req.method !== 'POST') return json(res,405,{error:'Use POST'});
-  const key = process.env.TRIMBLE_API_KEY;
-  if (!key) return json(res,503,{error:'Truck routing is not configured'});
-  try {
-    let data='';
-    for await (const chunk of req) {
-      data += chunk;
-      if (data.length > 32768) return json(res,413,{error:'Request too large'});
-    }
-    const {points,profile={}}=JSON.parse(data);
-    const height=Number(profile.heightInches??162), weight=Number(profile.grossWeight??80000), length=Number(profile.trailerFeet??53), width=Number(profile.widthInches??102), overall=Number(profile.overallFeet??75);
-    if(!Number.isFinite(overall)||overall<=length||overall>100||!Number.isFinite(width)||width<60||width>102||!Number.isFinite(height)||height<60||height>180||!Number.isFinite(weight)||weight<1000||weight>80000||!Number.isFinite(length)||length<1||length>53)return json(res,400,{error:'Invalid standard truck dimensions or gross weight'});
-    if (!Array.isArray(points) || points.length<2 || points.length>25 || points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)||Math.abs(p.lat)>90||Math.abs(p.lng)>180))
-      return json(res,400,{error:'Supply 2–25 valid coordinate stops'});
-    const cacheKey=JSON.stringify([points.map(p=>[p.lat,p.lng]),height,weight,length,width,overall]);
-    if(routeCache.has(cacheKey))return json(res,200,routeCache.get(cacheKey));
-    if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}
-    if(++quotaCalls>100)return json(res,429,{error:'Truck planning request limit reached; retry later'});
-    const response=await fetch('https://pcmiler.alk.com/apis/rest/v1.0/Service.svc/route/routeReports', {
-      method:'POST', headers:{Authorization:key,'Content-Type':'application/json'},
-      signal:AbortSignal.timeout(25000),
-      body:JSON.stringify({ReportRoutes:[{Stops:points.map(p=>({Coords:{Lat:String(p.lat),Lon:String(p.lng)},Region:4})),
-        Options:{VehicleType:0,RoutingType:0,HighwayOnly:false,DistanceUnits:0,TruckCfg:{Units:0,Height:String(height),Weight:String(weight),Length:String(length*12),Width:String(width),MaxStraightLength:String(length*12),BumperToBumperLength:String(overall*12)}},
-        ReportTypes:[{__type:'MileageReportType:http://pcmiler.alk.com/APIs/v1.0',TimeInSeconds:true}]}]})
-    });
-    if(!response.ok) return json(res,502,{error:'Trimble routing request failed',upstreamStatus:response.status});
-    const reports=await response.json();
-    const lines=reports.find(r=>Array.isArray(r.ReportLines))?.ReportLines;
-    if(!lines?.length || lines.some(l=>l.Stop?.Errors?.length)) return json(res,502,{error:'Trimble could not resolve all route stops'});
-    const end=lines[lines.length-1];
-    const hours=String(end.THours).split(':').map(Number);
-    const duration=hours.length===3 ? hours[0]*3600+hours[1]*60+hours[2] : Number(end.THours);
-    const distance=Number(end.TMiles)*1609.344;
-    if(!Number.isFinite(distance)||!Number.isFinite(duration)) return json(res,502,{error:'Invalid Trimble route totals'});
-    const result={distance,duration,provider:'Trimble PC*Miler',geometry:null,
-      profile:{heightInches:height,grossWeight:weight,trailerFeet:length,widthInches:width,overallFeet:overall},legs:lines};
-    if(routeCache.size>=100)routeCache.delete(routeCache.keys().next().value);
-    routeCache.set(cacheKey,result);
-    return json(res,200,result);
-  } catch(e) { return json(res,502,{error:'Truck routing unavailable; retry or contact dispatcher'}); }
+async function truckRoute(req,res){
+ if(req.method!=='POST')return json(res,405,{error:'Use POST'});
+ try{
+  let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>32768)return json(res,413,{error:'Request too large'});}
+  const {points,profile={}}=JSON.parse(raw);
+  if(!Array.isArray(points)||points.length<2||points.length>25||points.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng)||Math.abs(p.lat)>90||Math.abs(p.lng)>180))return json(res,400,{error:'Supply 2–25 valid coordinate stops'});
+  const height=Number(profile.heightInches??162),width=Number(profile.widthInches??102),weight=Number(profile.grossWeight??80000),trailer=Number(profile.trailerFeet??53),overall=Number(profile.overallFeet??75);
+  if(height<60||height>180||width<60||width>102||weight<1000||weight>80000||trailer<1||trailer>53||overall<=trailer||overall>100||![height,width,weight,trailer,overall].every(Number.isFinite))return json(res,400,{error:'Invalid truck profile'});
+  const coords=points.map(p=>p.lng+','+p.lat).join(';');
+  const key=JSON.stringify([coords,height,width,weight,trailer,overall]);if(routeCache.has(key))return json(res,200,routeCache.get(key));
+  if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}if(++quotaCalls>100)return json(res,429,{error:'Routing request limit reached'});
+  // Public OSRM driving network provides planning mileage only; it does NOT apply truck restrictions.
+  const upstream=await fetch('https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=false&steps=false',{signal:AbortSignal.timeout(25000),headers:{'User-Agent':'RouteStride/1.0 (trip planning estimates)'}});
+  if(!upstream.ok)return json(res,502,{error:'Planning road network temporarily unavailable'});
+  const payload=await upstream.json();const route=payload.routes?.[0];
+  if(payload.code!=='Ok'||!Number.isFinite(route?.distance)||!Number.isFinite(route?.duration))return json(res,422,{error:'No connected road route found for these stops'});
+  const result={distance:route.distance,duration:route.duration,geometry:null,legs:route.legs||[],provider:'OSRM driving-road estimate',truckRestrictionsChecked:false,planningEstimate:true,notice:'Planning mileage only. Road height, weight, width, length and truck restrictions are NOT verified.',profile:{heightInches:height,widthInches:width,grossWeight:weight,trailerFeet:trailer,overallFeet:overall}};
+  if(routeCache.size>=100)routeCache.delete(routeCache.keys().next().value);routeCache.set(key,result);return json(res,200,result);
+ }catch(e){console.error('Road estimate failed',e.message);return json(res,502,{error:'Planning road network unavailable; try again'});}
 }
 const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js','/historical-awareness.html']);
 const protectedFiles=new Set(['/planner.html','/route-import.html','/pilot-flyingj-directory.html','/ta-petro-directory.html','/loves-directory.html','/Route_Stride_Demo.html']);
