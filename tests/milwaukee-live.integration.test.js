@@ -51,6 +51,8 @@ test('Milwaukee-to-Springville saved trip builds all 8 stops and real OSRM route
  vm.runInContext('save=(text,name,type)=>{globalThis.testGPX={text,name,type}};downloadRouteGPX()',context);
  assert.equal((context.testGPX.text.match(/<rtept /g)||[]).length,9);
  assert.match(context.testGPX.text,/Springville/);
+ getElementById('generated').textContent='Professional Driver Trip Plan';
+ getElementById('plan').textContent='Professional Driver Trip Plan';
  vm.runInContext('renderTripMapPins=()=>{};printProfessionalPlan()',context);
  const print=getElementById('printReport').innerHTML;
  for(const name of ['PROFESSIONAL DRIVER TRIP PLAN','Google Maps','Apple Delivery','Trucker Path','Hammer Leg 1','Hammer Leg 2','Download Garmin GPX'])
