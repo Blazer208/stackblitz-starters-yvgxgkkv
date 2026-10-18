@@ -382,6 +382,11 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  // Open-data first: avoid a paid POI lookup on every trip. The truck-route
  // service remains responsible for validating mileage and drive time.
  const candidates=[];
+ // Automatically rank saved directory stops; never require the driver to inspect a directory.
+ try{
+   const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network,targetMiles})});
+   if(response.ok){const data=await response.json();candidates.push(...(data.stops||[]));}
+ }catch(e){console.warn('Automatic stop directory unavailable:',e.message);}
  let openDirectoryError='';
  try{
    const r=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
