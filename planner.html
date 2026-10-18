@@ -346,12 +346,19 @@ async function routeStrideAddressCandidates(origin,destination,kind,network,targ
  const states=new Set([originState,destinationState].filter(Boolean));
  for(const state of [...states])for(const near of adjacent[state]||[])states.add(near);
  const eligible=directory.filter(s=>allowedBrand(brandOf(s.name),kind,network));
- // Include nearby corridor states, while bounding public geocoding calls.
- const shortlist=eligible.filter(s=>states.has(s.address.match(statePattern)?.[1])).slice(0,12);
+ // Distribute lookups across all corridor states rather than taking the first
+ // twelve alphabetical directory records (which excluded many usable states).
+ const grouped=new Map();
+ for(const s of eligible){const state=s.address.match(statePattern)?.[1];if(!state||!states.has(state))continue;if(!grouped.has(state))grouped.set(state,[]);grouped.get(state).push(s)}
+ const shortlist=[];
+ const groups=[...grouped.values()];
+ for(let index=0;shortlist.length<48&&groups.some(g=>index<g.length);index++)for(const g of groups){if(g[index])shortlist.push(g[index]);if(shortlist.length>=48)break}
  const results=[];
+ window.routeStrideGeocodes=window.routeStrideGeocodes||new Map();
  for(const s of shortlist){
-  let geo;try{geo=await geocode(s.address)}catch(e){continue}
-  if(!geo||corridorDistanceMiles(geo,origin,destination)>50)continue;
+  let geo=window.routeStrideGeocodes.get(s.address);
+  if(geo===undefined){try{geo=await geocode(s.address)}catch(e){geo=null}window.routeStrideGeocodes.set(s.address,geo)}
+  if(!geo||corridorDistanceMiles(geo,origin,destination)>80)continue;
   results.push({...s,lat:geo.lat,lng:geo.lng,source:'Route Stride uploaded address directory — geocoded; entrance not independently verified'});
  }
  return results;
@@ -392,7 +399,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  let directMiles=null;
  try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
  const eligible=[];
- for(const stop of candidates.filter(s=>allowedBrand(brandOf(s.name),kind,network)).slice(0,36)){
+ for(const stop of candidates.filter(s=>allowedBrand(brandOf(s.name),kind,network)).slice(0,72)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
    if(!(miles>=minMiles&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
