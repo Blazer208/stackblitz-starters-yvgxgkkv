@@ -87,6 +87,7 @@ test('Milwaukee Springville planner stages in Utah before next-morning delivery 
  };
  await context.buildGenericPlan();
  const stops=Array.from(vm.runInContext('lastPlanStops',context));
+ console.log('SPRINGVILLE STAGING DEBUG',stops.map(p=>({kind:p.kind,address:p.address,miles:p.miles,driveHours:p.driveHours})));
  const stage=stops.at(-2),delivery=stops.at(-1);
  assert.equal(stage.kind,'rest');
  assert.match(stage.address,/Springville, UT/);
