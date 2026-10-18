@@ -153,6 +153,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   </div>
   <div class="actions">
    <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
+   <button id="savedTripBtn" class="btn good" type="button" onclick="loadSavedMilwaukeeTrip()">Load Saved Trip 127532 — All Stops + Maps</button>
    <button class="btn secondary" type="button" onclick="printProfessionalPlan()">Print / Save PDF</button>
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
@@ -524,6 +525,15 @@ const trip127532Stops=[
  {kind:"delivery",day:"MON",name:"CANDYCO",address:"2224 W 500 N, Springville, UT 84663",lat:40.175500,lng:-111.654139,truckEntrance:"",pinNote:"Customer-supplied delivery pin; truck entrance not verified"}
 ];
 
+async function loadSavedMilwaukeeTrip(){
+ const btn=document.getElementById('savedTripBtn');
+ if(btn.disabled)return;
+ btn.disabled=true;const prior=btn.textContent;btn.textContent='Loading saved trip and all exports…';
+ lastPlanStops=[];lastRoute=null;document.getElementById('generated').innerHTML='';
+ try{await build127532();}
+ catch(e){lastPlanStops=[];lastRoute=null;document.getElementById('generated').innerHTML='';document.getElementById('status').innerHTML='<span class="error"><b>Saved trip could not load:</b> '+esc(e.message)+'</span>';}
+ finally{btn.disabled=false;btn.textContent=prior;}
+}
 async function build127532(){
  const status=document.getElementById("status"),gen=document.getElementById("generated");
  status.innerHTML='<span class="spinner"></span>Loading Trip 127532 and building navigation handoffs…';
@@ -534,7 +544,7 @@ async function build127532(){
  const yardStop={name:"Starting yard",address:val("yard"),lat:yardGeo.lat,lng:yardGeo.lng};
  stops[0].address=val("pickup"); if(pickupGeo){stops[0].lat=pickupGeo.lat;stops[0].lng=pickupGeo.lng}
  stops[7].address=val("delivery"); if(!/springville/i.test(val("delivery"))){if(deliveryGeo){stops[7].lat=deliveryGeo.lat;stops[7].lng=deliveryGeo.lng;}else{stops[7].lat=null;stops[7].lng=null;}}
- lastPlanStops=[yardStop,...stops.map(s=>({name:s.name,address:s.address,lat:s.lat,lng:s.lng,truckEntrance:s.truckEntrance||"",pinNote:s.pinNote||""}))];
+ lastPlanStops=[{...yardStop,kind:'yard'},...stops.map(s=>({...s,truckEntrance:s.truckEntrance||'',pinNote:s.pinNote||''}))];
  lastOrigin=lastPlanStops[0]; lastDest=lastPlanStops[lastPlanStops.length-1];
  try{lastRoute=await routeThrough(lastPlanStops)}catch(e){lastRoute=null;throw e}
  const fri=stopCard(yardStop,"DEPART YARD","Drive from the yard to PHOENIX before pickup.")+stopCard(stops[0],"PICKUP","Friday, Oct 9 at 1:30 PM Central • 44 pallets • 41,127 lb.")
