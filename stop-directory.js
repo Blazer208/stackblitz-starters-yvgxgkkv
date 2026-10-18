@@ -24,7 +24,7 @@ starterStops.push(
  {name:'Flying J Travel Center #764',brand:'Flying J',address:'650 Stagecoach Blvd, Rock Springs, WY 82901',lat:41.6090307,lng:-109.2305669,source:'Driver saved trip 127532',verifiedEntrance:false},
  {name:'Pilot Travel Center #747',brand:'Pilot',address:'1460 N 1750 W, Springville, UT 84663',lat:40.1875538,lng:-111.6415642,source:'Driver saved trip 127532',verifiedEntrance:false}
 );
-for(const p of starterStops){if(!records.some(r=>r.brand===p.brand&&(r.storeNumber===p.storeNumber||Math.abs(r.lat-p.lat)<0.0001&&Math.abs(r.lng-p.lng)<0.0001)))records.push(p);}
+for(const p of starterStops){if(!records.some(r=>r.brand===p.brand&&((p.storeNumber&&r.storeNumber===p.storeNumber)||(Math.abs(r.lat-p.lat)<0.0001&&Math.abs(r.lng-p.lng)<0.0001))))records.push(p);}
 function miles(a,b){const rad=Math.PI/180,dy=(a.lat-b.lat)*69,dx=(a.lng-b.lng)*69*Math.cos((a.lat+b.lat)*rad/2);return Math.hypot(dx,dy);}
 function nearSegment(p,a,b){const dy=(b.lat-a.lat)*69,dx=(b.lng-a.lng)*69*Math.cos((a.lat+b.lat)*Math.PI/360);const py=(p.lat-a.lat)*69,px=(p.lng-a.lng)*69*Math.cos((a.lat+b.lat)*Math.PI/360);const t=Math.max(0,Math.min(1,(px*dx+py*dy)/(dx*dx+dy*dy||1)));return Math.hypot(px-t*dx,py-t*dy);}
 function search(a,b,allowed,maxCorridorMiles=110){return records.filter(p=>allowed(p.brand)&&nearSegment(p,a,b)<=maxCorridorMiles).sort((x,y)=>miles(x,a)-miles(y,a)).slice(0,250);}
