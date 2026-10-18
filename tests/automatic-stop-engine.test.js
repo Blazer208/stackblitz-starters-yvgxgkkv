@@ -40,10 +40,10 @@ test('automatic candidate search deduplicates addresses and rejects invalid coor
 test('saved Milwaukee-to-Springville corridor contains automatic Pilot/Flying J fuel candidates',()=>{
  const corridor=[{lat:41.9,lng:-91.8},{lat:41.6,lng:-93.5}];
  const result=candidates({points:corridor,kind:'break',targetMiles:25});
- assert.ok(result.stops.some(s=>/Cedar Rapids/.test(s.name)||/Altoona/.test(s.name)),JSON.stringify(result.stops));
+ assert.ok(result.stops.some(s=>/Cedar Rapids|Altoona/.test(s.address)),JSON.stringify(result.stops));
  assert.ok(result.stops.every(s=>['Pilot','Flying J'].includes(s.brand)));
 });
 test('directory includes user-saved fuel and overnight locations',()=>{
  const results=directory.search({lat:41.1,lng:-101},{lat:41.1,lng:-103},()=>true);
- assert.ok(results.some(s=>s.name.includes('Sidney')));
+ assert.ok(results.some(s=>s.address.includes('Sidney')));
 });
