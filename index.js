@@ -169,7 +169,7 @@ const server = http.createServer(async (req, res) => {
     if(req.method!=='GET')return json(res,405,{error:'Use GET'});
     if(!auth.userFor(req))return json(res,401,{error:'Sign in required'});
     const stops=require('./data/loves-addresses.json');
-    return json(res,200,{count:stops.length,stops,notice:'68 source-listed addresses across 15 states; not nationwide, truck entrances and coordinates unverified'});
+    return json(res,200,{count:stops.length,stops,notice:'Source-listed addresses; not nationwide, truck entrances and coordinates unverified'});
   }
   if (urlPath === '/api/pilot-flyingj-directory') {
     if(req.method!=='GET')return json(res,405,{error:'Use GET'});
