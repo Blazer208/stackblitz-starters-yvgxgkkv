@@ -12,7 +12,7 @@ function candidates({points,kind='break',network='Pilot / Flying J only',targetM
  let offset=0;const ranked=new Map();
  for(const leg of legs){
   for(const stop of directory.search(leg.a,leg.b,brand=>allowedBrand(brand,kind,network))){
-   if(!point(stop)||!stop.address)continue;
+   if(!point(stop)||!stop.address||!allowedBrand(stop.brand,kind,network))continue;
    const pos=project(stop,leg.a,leg.b);if(pos.corridorMiles>maxCorridorMiles)continue;
    const estimatedProgressMiles=offset+leg.length*pos.progress;
    const key=stop.brand+':'+stop.address.toLowerCase().replace(/\s+/g,' ').trim();
