@@ -68,3 +68,22 @@ test('Pilot-only fuel and approved overnight parking networks are distinct',()=>
  assert.equal(allowedBrand('TA','rest','Pilot / Flying J only'),true);
  assert.equal(allowedBrand('Flying J','break','Pilot / Flying J only'),true);
 });
+
+test('overnight stop selection never repeats the current stop at zero miles',async()=>{
+ const {context}=fixture();
+ context.routeStrideAddressCandidates=async()=>[];
+ context.fetchTimed=async url=>({
+   ok:true,
+   async json(){return {stops:url.includes('automatic-stop-candidates')?[
+     {name:'Pilot at origin',address:'Origin address',lat:41,lng:0},
+     {name:'Flying J ahead',address:'Rest address',lat:41,lng:250}
+   ]:[]};}
+ });
+ context.routeThrough=async points=>{
+   const distance=Math.abs(points[1].lng-points[0].lng)*1609.344;
+   return {distance,duration:distance/1609.344/55*3600};
+ };
+ const selected=await context.selectTruckStop({lat:41,lng:0},{lat:41,lng:1000},'rest','Pilot / Flying J only',6,55);
+ assert.equal(selected.name,'Flying J ahead');
+ assert.ok(selected.miles>=15);
+});
