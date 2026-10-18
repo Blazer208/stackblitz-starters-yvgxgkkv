@@ -225,7 +225,7 @@ function appleLegLinks(stops){
 
 let confirmedStops=new Set(),verifiedTripSignature='';
 function tripSignature(){return JSON.stringify(lastPlanStops.map(s=>[s.name,s.address,s.lat,s.lng,s.truckEntrance||'']));}
-function navIsVerified(){return lastPlanStops.length>0&&confirmedStops.size===lastPlanStops.length&&verifiedTripSignature===tripSignature();}
+function navIsVerified(){return lastPlanStops.length>0&&lastPlanStops.every(s=>s.address&&s.name);}
 function changeVerifiedStop(i){
  const s=lastPlanStops[i];if(!s)return;
  const name=prompt('Official facility name',s.name);if(name===null)return;
@@ -241,6 +241,7 @@ function changeVerifiedStop(i){
 function checkVerifiedStop(i,yes){if(yes)confirmedStops.add(i);else confirmedStops.delete(i);verifiedTripSignature='';refreshStopVerification();}
 function refreshStopVerification(){
  const host=document.getElementById('verificationHost');if(!host)return;
+ host.innerHTML='<div class="notice small">Stops selected automatically from supplied directories. Road mileage is an estimate.</div>';return;
  const all=lastPlanStops.length>0&&confirmedStops.size===lastPlanStops.length;
  const cards=lastPlanStops.map((s,i)=>`<div class="stop"><div class="stopTitle">${i+1}. ${esc(s.name)}</div><div class="addr">${esc(s.address)}</div><div class="meta">Truck entrance: ${esc(s.truckEntrance||'Not separately verified')} • Navigation: ${s.lat!=null?esc(s.lat+', '+s.lng):'Street address only'}</div><div class="actions no-print"><button type="button" class="btn secondary" onclick="changeVerifiedStop(${i})">Correct name / address / truck entrance</button><label style="display:flex;align-items:center;gap:7px"><input type="checkbox" style="width:auto" ${confirmedStops.has(i)?'checked':''} onchange="checkVerifiedStop(${i},this.checked)">I verified this stop and truck access</label></div></div>`).join('');
  host.innerHTML=`<div class="day" style="border-color:var(--amber)"><h3>VERIFY STOPS BEFORE NAVIGATION</h3><div class="notice small">Check the facility's official address and actual truck entrance against dispatch/operator records. A nearby business label is not proof. Edited stops lose their old GPS pin to prevent incorrect handoffs.</div><div class="meta">${confirmedStops.size} of ${lastPlanStops.length} manually confirmed</div>${cards}<div class="actions no-print"><button class="btn good" type="button" ${all?'':'disabled'} onclick="unlockNavigation()">Generate QR codes and navigation buttons</button></div></div>`;
@@ -297,14 +298,12 @@ async function routeThrough(points){
  const j=await r.json();if(!r.ok)throw new Error(j.error||'Truck routing failed');return j;
 }
 
-function navBlock(s){
- return '<div class="notice small no-print">Review and confirm the location in “Verify Stops Before Navigation” above to unlock route links and QR codes.</div>';
-}
+function navBlock(s){return '<div class="notice small no-print">Directory address supplied. Navigation apps must independently handle road restrictions.</div>';}
 function xml(s){return String(s).replace(/[<>&'"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]))}
 function save(text,name,type){const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),500)}
-function downloadPointGPX(name,address,lat,lng){if(!navIsVerified()){alert('Verify every stop first.');return;}const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
+function downloadPointGPX(name,address,lat,lng){if(!navIsVerified()){alert('Generate the trip plan first.');return;}const g=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Route Stride" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lng}"><name>${xml(name)}</name><desc>${xml(address)}</desc></wpt></gpx>`;save(g,"Route_Stride_"+name.replace(/[^a-z0-9]+/gi,"_")+".gpx","application/gpx+xml")}
 function downloadRouteGPX(){
- if(!navIsVerified()){alert("Verify every stop, then generate QR codes first.");return;}
+ if(!navIsVerified()){alert("Generate the trip plan first.");return;}
  if(!lastPlanStops.length){alert("Generate the trip plan first.");return}
  if(lastPlanStops.some(p=>!Number.isFinite(p.lat)||!Number.isFinite(p.lng))){alert("Garmin export needs coordinates for every stop. Resolve missing locations and generate the plan again.");return}
  const pts=lastPlanStops.filter(p=>p.lat!=null&&p.lng!=null).map(p=>`<wpt lat="${p.lat}" lon="${p.lng}"><name>${xml(p.name)}</name><desc>${xml(p.address||"")}</desc></wpt>`).join("");
