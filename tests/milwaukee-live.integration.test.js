@@ -41,6 +41,16 @@ test('Milwaukee-to-Springville saved trip builds all 8 stops and real OSRM route
  const stops=Array.from(vm.runInContext('lastPlanStops',context));
  assert.equal(stops.length,9,'Yard, pickup, 6 planned stops, delivery');
  assert.deepEqual(stops.slice(1).map(s=>s.kind),['pickup','break','rest','break','rest','break','rest','delivery']);
+ // Customer labels are not city names: PHOENIX is the Milwaukee pickup,
+ // and CANDYCO is the Springville delivery. Verify addresses separately.
+ assert.equal(stops[1].name,'PHOENIX');
+ assert.equal(stops[1].address,fields.pickup);
+ assert.equal(stops.at(-1).name,'CANDYCO');
+ assert.equal(stops.at(-1).address,fields.delivery);
+ assert.match(stops[1].address,/Milwaukee, WI 53212$/);
+ assert.match(stops.at(-1).address,/Springville, UT 84663$/);
+ assert.equal(stops.at(-2).kind,'rest');
+ assert.match(stops.at(-2).address,/Springville, UT 84663$/);
  assert.match(getElementById('status').innerHTML,/TRIP 127532 LOADED/);
  const plan=getElementById('generated').innerHTML;
  for(const name of ['Cedar Rapids','Altoona','North Platte','Sidney','Rock Springs','Springville'])
