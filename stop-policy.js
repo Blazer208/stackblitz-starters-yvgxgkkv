@@ -1,15 +1,16 @@
 // Shared truck-stop policy; distances are truck-route miles, never air miles.
-const STOP_POLICY = Object.freeze({minMiles:250,targetMiles:300,maxMiles:350});
+const STOP_POLICY = Object.freeze({minMiles:200,targetMiles:250,maxMiles:300});
 function stopWindow(kind,hoursLeft,speed,require300=false){
  if(!['break','rest'].includes(kind)||!Number.isFinite(hoursLeft)||hoursLeft<=0||!Number.isFinite(speed)||speed<10||speed>75)throw new Error('Invalid stop-planning hours or speed.');
  const clockMiles=Math.floor(Math.min(hoursLeft,7.75)*speed);
- const maxMiles=Math.min(kind==='break'?350:450,clockMiles);
+ const preferredMax=kind==='break'&&require300?350:STOP_POLICY.maxMiles;
+ const maxMiles=Math.min(preferredMax,clockMiles);
  if(require300&&maxMiles<300)throw new Error('The first-stop 300-mile minimum cannot fit the available driving hours. Review the load requirement with dispatch.');
  if(maxMiles<1)throw new Error('No driving time remains for another leg.');
  // Preferred break mileage is a target; overnights may be closer when the remaining clock is short.
- const minMiles=require300?300:0; // 300-mile preference is a target, not a mandatory minimum unless dispatch explicitly requires it.
+ const minMiles=require300?300:Math.max(0,Math.min(STOP_POLICY.minMiles,maxMiles-100));
  if(maxMiles<minMiles||maxMiles===0)throw new Error('No search window remains for a suitable stop within the available hours.');
- return {minMiles,maxMiles,targetMiles:kind==='break'?Math.min(300,maxMiles):Math.max(0,maxMiles-25)};
+ return {minMiles,maxMiles,targetMiles:require300?Math.min(300,maxMiles):Math.min(STOP_POLICY.targetMiles,maxMiles)};
 }
 function brandOf(name) {
   if (/\bflying\s*j\b/i.test(name)) return 'Flying J';
