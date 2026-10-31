@@ -120,7 +120,7 @@ async function truckRoute(req,res){
  }catch(e){console.error('Road estimate failed',e.message);return json(res,502,{error:'Planning road network unavailable; try again'});}
 }
 const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js','/historical-awareness.html']);
-const protectedFiles=new Set(['/planner.html','/route-import.html','/pilot-flyingj-directory.html','/ta-petro-directory.html','/loves-directory.html','/Route_Stride_Demo.html']);
+const protectedFiles=new Set(['/planner.html','/route-import.html','/pilot-flyingj-directory.html','/ta-petro-directory.html','/loves-directory.html','/Route_Stride_Demo.html','/otr-fitness.html']);
 const securityHeaders={
  'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
  'Strict-Transport-Security':'max-age=31536000',
