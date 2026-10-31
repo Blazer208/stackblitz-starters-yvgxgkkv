@@ -153,10 +153,14 @@ const server = http.createServer(async (req, res) => {
   if (urlPath === '/api/pilot-flyingj-directory') {
     if(req.method!=='GET')return json(res,405,{error:'Use GET'});
     if(!auth.userFor(req))return json(res,401,{error:'Sign in required'});
-    const entries=require('./data/pilot-flyingj-addresses.json')
+    const curated=require('./data/route-stride-map-stops.json');
+    const curatedCities=new Set(curated.map(x=>x.state.toLowerCase()+'|'+x.city.toLowerCase()));
+    const legacy=require('./data/pilot-flyingj-addresses.json')
       .filter(x=>Array.isArray(x)&&x.length===3&&x[0]!=='State'&&x.every(v=>typeof v==='string'&&v.length>0))
+      .filter(([state,city])=>!curatedCities.has(state.toLowerCase()+'|'+city.toLowerCase()))
       .map(([state,city,address])=>({name:'Pilot / Flying J - '+city,brand:'Pilot / Flying J',state,city,address,source:'User-supplied StoresHours.com listings',coordinatesPending:true,verifiedEntrance:false}));
-    return json(res,200,{count:entries.length,states:new Set(entries.map(x=>x.state)).size,stops:entries,notice:'Address-only listings; coordinates and brand subtype not verified for automatic routing'});
+    const entries=[...curated,...legacy];
+    return json(res,200,{count:entries.length,states:new Set(entries.map(x=>x.state)).size,stops:entries,notice:'Curated map-area locations and legacy address listings are address-only. Route Stride geocodes candidates and truck-route checks stop access before use; entrances remain unverified.'});
   }
   if(urlPath==='/api/automatic-stop-candidates'){
     if(req.method!=='POST')return json(res,405,{error:'Use POST'});

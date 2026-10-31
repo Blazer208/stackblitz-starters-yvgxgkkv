@@ -763,6 +763,6 @@ async function buildPlan(){
 })();
 </script>
 <script>
-(function(){const q=new URLSearchParams(location.search);const address=q.get('pilotStop')||q.get('selectedStop');if(!address)return;window.routeStrideSelectedStop={name:(q.get('selectedBrand')||'Pilot')+' Travel Center (listing unverified)',brand:q.get('selectedBrand')||'Pilot',address};const box=document.createElement('div');box.className='card';box.textContent='Selected truck stop address for first break: '+address+'. This address will be geocoded and truck-route checked when you generate the plan; if it does not fit, planning stops with an error. Confirm actual brand and truck entrance.';document.querySelector('.form-card')?.before(box);})();
+(function(){const q=new URLSearchParams(location.search);const address=q.get('pilotStop')||q.get('selectedStop');if(!address)return;const brand=q.get('selectedBrand')||'Pilot';window.routeStrideSelectedStop={name:q.get('selectedStopName')||brand+' Travel Center (listing unverified)',brand,address};const box=document.createElement('div');box.className='card';box.textContent='Selected '+window.routeStrideSelectedStop.name+' for first-break evaluation at '+address+'. Route Stride will geocode this address and truck-route check it when you generate the plan; if it does not fit the route or stop window, planning will report that. Verify the truck entrance before arrival.';document.querySelector('.form-card')?.before(box);})();
 </script>
 </body></html>
