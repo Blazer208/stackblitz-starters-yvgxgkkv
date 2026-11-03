@@ -136,7 +136,7 @@ const server = http.createServer(async (req, res) => {
     const user=auth.userFor(req);if(!user)return json(res,401,{error:'Sign in required'});
     if(req.method==='POST'&&!auth.sameOrigin(req))return json(res,403,{error:'Invalid request origin'});
     if(!auth.limit('routing:'+user.id,800,3600000))return json(res,429,{error:'Your hourly planning limit has been reached. Try later.'});
-    if(!auth.limit('routing-burst:'+user.id,180,60000))return json(res,429,{error:'Too many planning requests. Try shortly.'});
+    if(!auth.limit('routing-burst:'+user.id,600,60000))return json(res,429,{error:'Too many planning requests. Try shortly.'});
   }
   if(urlPath==='/api/ta-petro-directory'){
     if(req.method!=='GET')return json(res,405,{error:'Use GET'});
