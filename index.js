@@ -78,8 +78,8 @@ async function osmTruckStops(req,res){
    const t=i/samples,lat=a.lat+(b.lat-a.lat)*t,lng=a.lng+(b.lng-a.lng)*t;
    clauses.push('nwr(around:25000,'+lat.toFixed(5)+','+lng.toFixed(5)+')[~"^(name|brand|operator)$"~"(pilot|flying j|love.s|one9|petro|travelcenters of america|little america)",i];');
   }
-  const query='[out:json][timeout:24];('+clauses.join('')+');out center tags 150;';
-  const upstream=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'RouteStride/1.0 (truck stop discovery)'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(28000)});
+  const query='[out:json][timeout:7];('+clauses.join('')+');out center tags 150;';
+  const upstream=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'RouteStride/1.0 (truck stop discovery)'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(8000)});
   if(!upstream.ok){if(local.length)return json(res,200,{stops:local,provider:'Route Stride local directory — live update unavailable'});return json(res,503,{error:'Public truck-stop directory is temporarily unavailable'});}
   const data=await upstream.json();const seen=new Set();
   const stops=(data.elements||[]).map(e=>{
