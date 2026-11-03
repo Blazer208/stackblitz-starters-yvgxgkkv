@@ -161,7 +161,8 @@ function parseLoadCard(){
   m=s.match(/\b([A-Z][A-Z0-9/-]{2,})\s+([\d,]+)\s*(PCS?|PALLETS?|CASES?)\b/i);
   if(m)put("commodity",m[1]+" • "+m[2]+" "+m[3].toUpperCase());
  }
- m=s.match(/Re(?:fer|efer)\s*Temp\??\s*([^\n]+)/i);if(m)put("reefer",m[1]);
+ m=s.match(/\b(?:Refer|Reefer)\s*Temp\??[ \t]*([^\r\n]*)/i);
+ if(m&&clean(m[1])&&!/^TRIP\s*NOTES\b/i.test(m[1]))put("reefer",m[1]);
  if($("load_pickup").value)$("origin").value=$("load_pickup").value;
  if($("load_delivery").value)$("destination").value=$("load_delivery").value;
  $("reviewed").checked=false;
