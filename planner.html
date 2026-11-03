@@ -415,13 +415,13 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  try{candidates.push(...await routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed));}catch(e){console.warn('Uploaded address directory lookup:',e.message);}
  if(directMiles===null)try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
 
- const assess=async(list)=>{
+ const assess=async(list,wideRange=false,anyNetwork=false)=>{
   const eligible=[];
-  const nearCandidates=list.filter(s=>allowedBrand(brandOf(s.name||s.brand||''),kind,network)&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lng)&&Math.hypot((+s.lat-origin.lat)*69,(+s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))>8)
+  const nearCandidates=list.filter(s=>allowedBrand(brandOf(s.name||s.brand||''),kind,anyNetwork?'automatic-fallback':network)&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lng)&&Math.hypot((+s.lat-origin.lat)*69,(+s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))>8)
    .map(s=>({...s,approxMiles:Math.hypot((s.lat-origin.lat)*69,(s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))}))
    .filter(s=>s.approxMiles<=maxMiles*1.25+20&&s.approxMiles>=Math.max(0,minMiles*.55-20))
    .sort((a,b)=>Math.abs(a.approxMiles-targetMiles)-Math.abs(b.approxMiles-targetMiles));
-  for(const stop of nearCandidates.slice(0,12)){
+  for(const stop of nearCandidates.slice(0,wideRange?24:12)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
    if(!(miles>=Math.max(minMiles,kind==='rest'?15:1)&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
@@ -438,32 +438,48 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
  let eligible=await assess(candidates),additionalCandidates=[];
  if(!eligible.length){
   const status=document.getElementById('status');
-  if(status)status.innerHTML='<span class="spinner"></span>Searching additional nearby truck-stop listings automatically…';
+  if(status)status.innerHTML='<span class="spinner"></span>Expanding the stop search and adjusting spacing automatically…';
   try{
    const response=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
    if(response.ok){const data=await response.json();additionalCandidates=data.stops||[];eligible=await assess(additionalCandidates);}
   }catch(e){console.warn('Additional automatic stop lookup unavailable:',e.message);}
  }
- if(!eligible.length&&require300){
-  // Keep the 300-mile target when possible. If it cannot fit a real listed stop,
-  // progressively relax the target while staying inside the available drive clock.
-  minMiles=Math.max(1,Math.min(200,maxMiles-1));
-  const combined=[...candidates,...additionalCandidates];
-  eligible=await assess(combined);
-  if(!eligible.length&&minMiles>1){
-   minMiles=1;
-   eligible=await assess(combined);
+ let expandedCandidates=[];
+ let usedExpandedNetwork=false,usedAdjustedSpacing=false;
+ if(!eligible.length){
+  const fallbackNetwork='automatic-fallback';
+  try{
+   const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network:fallbackNetwork,targetMiles})});
+   if(response.ok){const data=await response.json();expandedCandidates.push(...(data.stops||[]));}
+  }catch(e){console.warn('Expanded stop directory lookup unavailable:',e.message);}
+  try{
+   const response=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network:fallbackNetwork})});
+   if(response.ok){const data=await response.json();expandedCandidates.push(...(data.stops||[]));}
+  }catch(e){console.warn('Expanded public stop lookup unavailable:',e.message);}
+  const combined=[...candidates,...additionalCandidates,...expandedCandidates];
+  const originalMin=minMiles,originalTarget=targetMiles;
+  const floors=kind==='rest'?[100,50,15]:[150,100,50,1];
+  for(const floor of floors){
+   if(eligible.length)break;
+   minMiles=Math.min(originalMin,Math.max(kind==='rest'?15:1,Math.min(floor,maxMiles-1)));
+   if(maxMiles<minMiles)continue;
+   targetMiles=Math.max(minMiles,Math.min(originalTarget,(minMiles+maxMiles)/2));
+   eligible=await assess(combined,true,true);
+   if(eligible.length){usedExpandedNetwork=true;usedAdjustedSpacing=minMiles<originalMin;break;}
   }
-  if(eligible.length)automaticAdjustment=true;
+  minMiles=originalMin;targetMiles=originalTarget;
  }
  if(eligible.length){
   const selected=eligible[0];
-  if(require300&&automaticAdjustment&&selected.miles<300){
+  if(require300&&selected.miles<300){
    selected.automaticAdjustment='Alcohol-load first-break target adjusted to '+selected.miles.toFixed(0)+' estimated road miles because no suitable 300+ mile stop fit the available drive window.';
+  }else if(usedAdjustedSpacing||usedExpandedNetwork){
+   selected.automaticAdjustment='Route Stride adjusted the stop search automatically'+(usedAdjustedSpacing?' to '+selected.miles.toFixed(0)+' estimated road miles':'')+(usedExpandedNetwork?' and included additional listed truck-stop networks':'')+' to fit the available drive window.';
   }
   return selected;
  }
- throw new Error('Route Stride could not automatically locate a '+(kind==='break'?'break/fuel':'overnight rest')+' stop within the available drive time. Adjust the trip window and try again.');
+ throw new Error('No listed '+(kind==='break'?'break/fuel':'overnight rest')+' location could be routed within the available drive clock. Route Stride searched nearby listings and adjusted stop spacing automatically; increase available drive time or check the route addresses.');
+
 }
 async function buildGenericPlan(){
  const status=document.getElementById('status'),gen=document.getElementById('generated');
