@@ -56,7 +56,7 @@ async function truckStops(req,res){
     const value={stops:normalizeMatches(payload,kind,network),provider:'Trimble PC*Miler',window:{minMiles,maxMiles}};
     if(stopCache.size>=100)stopCache.delete(stopCache.keys().next().value);
     stopCache.set(cacheKey,{at:Date.now(),value});return json(res,200,value);
-  }catch(e){return json(res,502,{error:'Truck-stop search unavailable; retry or contact dispatcher'});}
+  }catch(e){return json(res,502,{error:'Automatic truck-stop search is unavailable; retry the trip plan.'});}
 }
 
 // Public OpenStreetMap candidate discovery; every selected leg must still pass PC*Miler truck routing.
@@ -96,7 +96,7 @@ async function osmTruckStops(req,res){
   const value={stops:merged.slice(0,90),provider:'Route Stride local directory + OpenStreetMap — candidate locations, truck route verification required',directoryCount:stopDirectory.count()};
   if(osmStopCache.size>60)osmStopCache.delete(osmStopCache.keys().next().value);
   osmStopCache.set(key,{at:Date.now(),value});return json(res,200,value);
- }catch(e){console.error('Public stop lookup failed',String(e.message).slice(0,120));return json(res,503,{error:'Public truck-stop directory unavailable; use dispatcher-selected stops'});}
+ }catch(e){console.error('Public stop lookup failed',String(e.message).slice(0,120));return json(res,503,{error:'Automatic truck-stop lookup is temporarily unavailable; retry the trip plan.'});}
 }
 
 async function truckRoute(req,res){
