@@ -13,7 +13,7 @@
 const $=id=>document.getElementById(id);
 function clean(v){return (v||"").replace(/\s+/g," ").trim()}
 function parseRoute(){
- const s=$("raw").value.replace(/\r/g,"");
+ const s=$("raw").value.replace(/\r/g,"").replace(/\b1D\b/gi,"ID").replace(/\b1N\b/gi,"IN");
  const header=s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)\s*:\s*\d+\s*Stops?\b/i)
    ||s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)(?:\n|Miles\s*:)/i);
  if(header){$("origin").value=clean(header[1]);$("destination").value=clean(header[2]);}
@@ -24,7 +24,7 @@ function parseRoute(){
  const miles=s.match(/\bMiles\s*:\s*([\d,]+(?:\.\d+)?)/i);
  if(miles){$("miles").value=miles[1];}
  else{
-  // On Route 1 Reports, the final arrival row contains leg miles/time followed by total miles/time.
+  // The final arrival row's last mileage/time pair is the total across all legs.
   const destinationCity=clean($("destination").value).split(",")[0].toLowerCase();
   const destinationLines=s.split("\n").filter(line=>destinationCity&&line.toLowerCase().includes(destinationCity));
   let totalMiles="";
@@ -38,8 +38,7 @@ function parseRoute(){
  const explicitStop=s.match(/^\s*Stop\s*1\s*:\s*(.+?)(?=\s{2,}\d+:\d{2}\b|\s*\(On-Duty\)|$)/im);
  if(explicitStop)$("stop").value=clean(explicitStop[1]);
  else{
-  // Route 1 Reports mark stops with an "Arrive Loaded" heading; skip origin and destination.
-  const lines=s.split("\n").map(clean);
+  const lines=s.split("\n").map(line=>clean(line).replace(/^[^A-Za-z0-9]+/,""));
   const originCity=clean($("origin").value).split(",")[0].toLowerCase();
   const destinationCity=clean($("destination").value).split(",")[0].toLowerCase();
   let detected="";
@@ -60,30 +59,34 @@ function parseRoute(){
 
  const roads=[];let rowCount=0;
  const addRoad=(direction,roadText)=>{
-  const highway=roadText.match(/\b(I|US|U\.S\.|[A-Z]{2})\s*[-–—]?\s*(\d{1,4}[A-Z]?)\b(?:\s+(Business|Bus(?:iness)?))?/i);
+  const normalized=roadText
+   .replace(/\b[Il1]\s*[-–—]\s*(?=\d)/gi,"I-")
+   .replace(/\bU\.S\.\s*[-–—]?\s*/gi,"US-")
+   .replace(/\b(US|I|[A-Z]{2})\s*[-–—]\s*(?=\d)/gi,"$1-");
+  const highway=normalized.match(/\b(I|US|[A-Z]{2})\s*[-–—]?\s*(\d{1,4}[A-Z]?)\b(?:\s+(Business|Bus(?:iness)?))?/i);
   if(!highway)return;
   const prefix=highway[1].replace(/\./g,"").toUpperCase();
   const suffix=highway[3]?" Business":"";
-  const directionName=direction?direction[1].toLowerCase().replace(/^./,c=>c.toUpperCase())+" ":"";
+  const directionName=direction[1].toLowerCase().replace(/^./,c=>c.toUpperCase())+" ";
   const name=directionName+prefix+"-"+highway[2].toUpperCase()+suffix;
-  const key=name.replace(/\s+Business$/i,"").toUpperCase();
+  const key=(prefix+"-"+highway[2]).toUpperCase();
   const previous=roads[roads.length-1]||"";
-  if(previous.replace(/\s+Business$/i,"").toUpperCase()===key){
+  const previousRoute=previous.match(/\b(?:I|US|[A-Z]{2})-\d{1,4}[A-Z]?\b/i);
+  if(previousRoute&&previousRoute[0].toUpperCase()===key){
    if(suffix&&!/\sBusiness$/i.test(previous))roads[roads.length-1]=name;
    return;
   }
   roads.push(name);
  };
  for(const line of s.split("\n")){
-  const row=line.match(/^\s*[A-Z]{2}\s+(.+)$/);
-  if(!row)continue;
-  const field=row[1].split(/\s*\+\s*/)[0].trim();
-  if(!/^(?:Keep\s+(?:right|left)|North|South|East|West|N|S|E|W|Right|Left|Straight|Turn around)\b/i.test(row[1]))continue;
-  rowCount++;
-  // Keep the road being travelled; the interchange column can name the next ramp/road early.
-  const direction=field.match(/^(North|South|East|West|N|S|E|W)\s+/i);
+  const direction=line.match(/\b(North|South|East|West)\s+/i);
   if(!direction)continue;
-  addRoad(direction,field.slice(direction[0].length));
+  rowCount++;
+  let field=line.slice(direction.index+direction[0].length);
+  const metrics=field.search(/\s+\d[\d,]*(?:\.\d+)?\s+\d{1,2}:\d{2}\b/);
+  if(metrics>=0)field=field.slice(0,metrics);
+  else field=field.split(/\s*\+\s*/)[0];
+  addRoad(direction,field);
  }
  $("roads").value=roads.join(" → ");
  $("reviewed").checked=false;
@@ -91,8 +94,9 @@ function parseRoute(){
   ?"Condensed "+roads.length+" highway sections from "+rowCount+" PC*MILER road rows. Check the endpoints, stop, miles, route order, and truck restrictions before transfer."
   :rowCount
    ?"Read "+rowCount+" road rows, but no highway names were recognized. Check the editable extracted text."
-   :"No PC*MILER road rows were recognized. For a multi-page report, select every page together; check the extracted text below or enter highways manually.";
+   :"No PC*MILER road rows were recognized. Check the extracted text or upload clearer report pages.";
 }
+
 
 const loadFields=["trip","driver","truck","trailer","pickup","delivery","pickupTime","deliveryTime","departureTime","weight","commodity","reefer"];
 function cardDate(text){
@@ -120,10 +124,12 @@ function addressFrom(block){
  return street&&city?street+", "+city:"";
 }
 function parseLoadCard(){
- const s=$("loadRaw").value.replace(/\r/g,"");
+ const s=$("loadRaw").value.replace(/\r/g,"").replace(/\b1D(?=\s+\d{5})/gi,"ID").replace(/\b1N(?=\s+\d{5})/gi,"IN");
  const put=(id,v)=>{if(v)$("load_"+id).value=clean(v);};
+ loadFields.forEach(id=>$("load_"+id).value="");
  let m=s.match(/TRIP\s*#?\s*([\d,]+)/i);if(m)put("trip",m[1].replace(/,/g,""));
- m=s.match(/DRIVER\s*:\s*([^\n]+)/i);if(m)put("driver",m[1].split(/\bTRUCK\b/i)[0]);
+ m=s.match(/^[ \t]*DRIVER[ \t]*:[ \t]*([^\r\n]*)/im);
+ if(m&&clean(m[1])&&!/\b(?:Wester|Transpo|Inc\.?)\b/i.test(m[1]))put("driver",m[1]);
  m=s.match(/TRUCK\s*#?\s*:\s*(\d+)/i);if(m)put("truck",m[1]);
  m=s.match(/TRAILER\s*#?\s*:\s*(\d+)/i);if(m)put("trailer",m[1]);
 
@@ -201,7 +207,30 @@ async function readSheet(file,statusId){
   const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
   await new Promise((res,rej)=>{script.onload=res;script.onerror=()=>rej(Error("Image reader could not load."));document.head.appendChild(script);});
  }
- return (await Tesseract.recognize(file,"eng")).data.text||"";
+ let bitmap,source=file;
+ try{
+  bitmap=await createImageBitmap(file);
+  const scale=Math.max(1,Math.min(3,2200/Math.max(bitmap.width,bitmap.height)));
+  const canvas=document.createElement("canvas");
+  canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
+  ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  const pixels=ctx.getImageData(0,0,canvas.width,canvas.height),data=pixels.data;
+  for(let i=0;i<data.length;i+=4){
+   const gray=0.299*data[i]+0.587*data[i+1]+0.114*data[i+2];
+   const contrast=Math.max(0,Math.min(255,(gray-128)*1.45+128));
+   data[i]=data[i+1]=data[i+2]=contrast;
+  }
+  ctx.putImageData(pixels,0,0);
+  source=canvas;
+ }catch(e){}
+ finally{if(bitmap&&bitmap.close)bitmap.close();}
+ if(!window.routeOcrWorker){
+  window.routeOcrWorker=Tesseract.createWorker("eng").catch(error=>{window.routeOcrWorker=null;throw error;});
+ }
+ const worker=await window.routeOcrWorker;
+ await worker.setParameters({tessedit_pageseg_mode:"11",preserve_interword_spaces:"1"});
+ return (await worker.recognize(source)).data.text||"";
 }
 
 $("scanLoad").onclick=async()=>{
