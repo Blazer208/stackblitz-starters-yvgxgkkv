@@ -25,12 +25,8 @@ function brandOf(name) {
 function allowedBrand(brand,kind,network) {
   if (!['break','rest'].includes(kind)) return false;
   if (['Pilot','Flying J'].includes(brand)) return true;
-  // Fuel stops obey the selected company network. Overnight parking can use approved alternatives.
-  if (kind==='rest' && ['One9',"Love's",'TA','Petro','Little America'].includes(brand)) return true;
-  if (network==="Pilot / Flying J + Love's") return brand==="Love's";
-  if (network==='Pilot / Flying J + TA / Petro') return ['TA','Petro'].includes(brand);
-  if (network==="Pilot / Flying J + Love's + TA / Petro") return ["Love's",'TA','Petro'].includes(brand);
-  return network==='All approved networks' && ['One9',"Love's",'TA','Petro','Little America'].includes(brand);
+  // Break and fuel stops use Pilot/Flying J. Love's is an overnight alternative.
+  return kind==='rest' && brand==="Love's";
 }
 function normalizeMatches(payload,kind,network) {
   if (!Array.isArray(payload.POISearchMatches)) throw new Error('Invalid truck-stop provider response');
