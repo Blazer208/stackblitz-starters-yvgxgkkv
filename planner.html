@@ -149,7 +149,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   </div>
   <div style="margin-top:12px"><label>Company route / highways</label><textarea id="notes">I-94 → US-151 → I-80 → I-15 → local to Springville</textarea></div>
   <div class="grid" style="margin-top:12px">
-   <div><label>Automatic stop selection</label><input id="network" type="hidden" value="Pilot / Flying J only"><div class="small muted">Break and fuel stops use Pilot or Flying J. Overnight rest uses Pilot, Flying J, or Love’s when available. Route Stride places the stops automatically.</div></div>
+   <div><label>Automatic stop selection</label><input id="network" type="hidden" value="Pilot / Flying J preferred; automatic listed-network fallback enabled"><div class="small muted">Preferred stops are Pilot / Flying J for breaks and fuel, and Pilot, Flying J, or Love’s for overnight rest. If no preferred stop fits the available drive clock, Route Stride automatically searches other listed truck-stop networks and identifies that adjustment in the plan.</div></div>
   </div>
   <div class="actions">
    <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
@@ -470,7 +470,10 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
  if(eligible.length){
   const selected=eligible[0];
   if(usedAdjustedSpacing||usedExpandedNetwork){
-   selected.automaticAdjustment='Route Stride adjusted stop spacing automatically to fit the available drive clock.';
+   const changes=[];
+   if(usedAdjustedSpacing)changes.push('adjusted stop spacing');
+   if(usedExpandedNetwork)changes.push('expanded the search to other listed truck-stop networks');
+   selected.automaticAdjustment='Route Stride automatically '+changes.join(' and ')+' to fit the available drive clock.';
   }
   if(usedExpandedNetwork)selected.automaticNetworkFallback=true;
   return selected;
