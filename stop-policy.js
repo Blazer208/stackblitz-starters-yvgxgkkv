@@ -23,6 +23,8 @@ function brandOf(name) {
 function allowedBrand(brand,kind,network) {
   if (!['break','rest'].includes(kind)) return false;
   if (['Pilot','Flying J'].includes(brand)) return true;
+  // The automatic fallback may use any listed national truck-stop network when the preferred network has no usable stop.
+  if(network==='automatic-fallback')return ["Love's",'One9','TA','Petro','Little America'].includes(brand);
   // Break and fuel stops use Pilot/Flying J. Love's is an overnight alternative.
   return kind==='rest' && brand==="Love's";
 }
