@@ -496,7 +496,7 @@ async function buildGenericPlan(){
        }
      }
      const alcoholFirstBreak=dayIndex===1&&leg===0&&document.getElementById('require300').checked;
-     if(alcoholFirstBreak&&miles<300)throw new Error('Delivery is within 300 miles of pickup; this trip cannot meet the selected first-stop minimum. Review with dispatch.');
+     if(alcoholFirstBreak&&miles<300)throw new Error('Delivery is within 300 miles of pickup, so the automatic 300-mile first-stop rule cannot fit. Adjust the route or schedule.');
      const forceShortTripBreak=shortTripRequiresOneBreak&&!shortTripBreakAdded&&dayIndex===1&&leg===0;
      if(hours<(leg===0?7.75-dayHours:7.75)&&dayHours+hours<=maxHours&&!forceShortTripBreak){
        const end={...deliveryStop,miles,driveHours:hours};entries.push(end);stops.push(end);dayHours+=hours;dayMiles+=miles;current=end;break;
