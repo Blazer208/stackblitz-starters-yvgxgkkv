@@ -5,7 +5,7 @@ function stopWindow(kind,hoursLeft,speed,require300=false){
  const clockMiles=Math.floor(Math.min(hoursLeft,7.75)*speed);
  const preferredMax=kind==='break'&&require300?350:STOP_POLICY.maxMiles;
  const maxMiles=Math.min(preferredMax,clockMiles);
- if(require300&&maxMiles<300)throw new Error('The first-stop 300-mile minimum cannot fit the available driving hours. Review the load requirement with dispatch.');
+ if(require300&&maxMiles<300)throw new Error('The first-stop 300-mile minimum cannot fit the entered drive time. Adjust the trip schedule or route.');
  if(maxMiles<1)throw new Error('No driving time remains for another leg.');
  // Preferred break mileage is a target; overnights may be closer when the remaining clock is short.
  const minMiles=require300?300:Math.max(0,Math.min(STOP_POLICY.minMiles,maxMiles-100));
