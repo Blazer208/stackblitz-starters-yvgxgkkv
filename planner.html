@@ -427,8 +427,16 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    if(!(miles>=Math.max(minMiles,kind==='rest'?15:1)&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
    let detourMiles=Infinity;
    if(directMiles!==null){
-    try{const via=await routeThrough([origin,stop,destination]);detourMiles=Math.max(0,via.distance/1609.344-directMiles);}catch(e){continue;}
-    if(detourMiles>35)continue;
+    try{
+     const via=await routeThrough([origin,stop,destination]);
+     detourMiles=Math.max(0,via.distance/1609.344-directMiles);
+    }catch(e){
+     try{
+      const onward=await routeThrough([stop,destination]);
+      detourMiles=Math.max(0,(route.distance+onward.distance)/1609.344-directMiles);
+     }catch(routeError){continue;}
+    }
+    if(detourMiles>(wideRange?80:35))continue;
    }
    eligible.push({...stop,kind,miles,driveHours:hours,detourMiles,source:'Automatically selected directory location — road distance estimated; truck restrictions and entrance not verified'});
   }
