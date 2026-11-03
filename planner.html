@@ -149,7 +149,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
   </div>
   <div style="margin-top:12px"><label>Company route / highways</label><textarea id="notes">I-94 → US-151 → I-80 → I-15 → local to Springville</textarea></div>
   <div class="grid" style="margin-top:12px">
-   <div><label>Approved fuel network</label><select id="network"><option>Pilot / Flying J only</option><option>Pilot / Flying J + Love's</option><option>Pilot / Flying J + TA / Petro</option><option>Pilot / Flying J + Love's + TA / Petro</option><option>All approved networks</option></select></div>
+   <div><label>Automatic stop selection</label><input id="network" type="hidden" value="Pilot / Flying J only"><div class="small muted">Break and fuel stops use Pilot or Flying J. Overnight rest uses Pilot, Flying J, or Love’s when available. Route Stride places the stops automatically.</div></div>
   </div>
   <div class="actions">
    <button id="generateBtn" class="btn primary" type="button" onclick="buildPlan()">Generate Trip Plan</button>
@@ -157,8 +157,8 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <button class="btn secondary" type="button" onclick="printProfessionalPlan()">Print / Save PDF</button>
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
-  <div class="notice small" style="margin-top:12px"><label for="require300" style="display:flex;align-items:center;gap:9px"><input id="require300" type="checkbox" style="width:auto;margin:0"><b>Alcohol load:</b> require the first break/fuel stop to be at least 300 estimated road miles after pickup</label><div class="muted small" style="margin:6px 0 0 25px">This setting turns on automatically when the commodity includes alcohol, beer, wine, whiskey, bourbon, vodka, tequila, spirits, or liquor. If the clock or a suitable stop cannot meet the requirement, the plan stops for dispatcher review.</div></div>
-  <div class="small muted">Dispatcher inputs now flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
+  <div class="notice small" style="margin-top:12px"><label for="require300" style="display:flex;align-items:center;gap:9px"><input id="require300" type="checkbox" style="width:auto;margin:0"><b>Alcohol load:</b> require the first break/fuel stop to be at least 300 estimated road miles after pickup</label><div class="muted small" style="margin:6px 0 0 25px">Turns on automatically for alcohol loads. If the 300-mile first stop cannot fit the entered drive clock, adjust the trip schedule or route.</div></div>
+  <div class="small muted">Trip details flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
  </div>
 
  <div class="card" id="plan">
@@ -342,7 +342,7 @@ function stopCard(s,title,note){
 }
 
 const LEG_POLICY=STOP_POLICY;
-let manualStopQueue=[],manualStopMode=false;
+let manualStopQueue=[];
 function legDriveHours(route,speed){return Math.max(route.duration/3600,route.distance/1609.344/speed);}
 let routeStrideDirectoryCache=null;
 async function loadRouteStrideDirectories(){
@@ -401,67 +401,57 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,r
    targetMiles=Math.min(targetMiles,maxMiles);
    if(maxMiles<1)throw new Error('No delivery distance remains for the required short-trip break/fuel stop.');
  }
- if(manualStopMode&&manualStopQueue.length){
-   const entered=manualStopQueue.shift();if(entered&&entered.plannedKind&&entered.plannedKind!==kind)throw new Error('Selected stop order mismatch: expected '+kind+' but next directory stop was marked '+entered.plannedKind+'. Reorder selected stops before generating.');if(!entered)throw new Error('Add the next dispatcher-selected '+kind+' stop. The entered stop list ends before delivery.');
-   if(!allowedBrand(brandOf(entered.name),kind,network))throw new Error(entered.name+' is not in the approved '+kind+' network.');
-   const geo=await geocode(entered.address);if(!geo)throw new Error('Could not locate truck stop: '+entered.address);
-   const stop={...entered,lat:geo.lat,lng:geo.lng,kind,source:'Dispatcher-selected directory address; geocoded and road-estimated; actual truck entrance unverified'};
-   const route=await routeThrough([origin,stop]);stop.miles=route.distance/1609.344;stop.driveHours=legDriveHours(route,speed);
-   if(stop.miles<minMiles||stop.miles>maxMiles||stop.driveHours>hoursLeft||stop.driveHours>=8)throw new Error(entered.name+' is '+stop.miles.toFixed(1)+' estimated road miles / '+stop.driveHours.toFixed(1)+' drive hours away; choose a stop within '+minMiles+'–'+maxMiles+' miles and the available clock.');
-   const direct=await routeThrough([origin,destination]);
-   const via=await routeThrough([origin,stop,destination]);
-   stop.detourMiles=Math.max(0,(via.distance-direct.distance)/1609.344);
-   if(stop.detourMiles>35)throw new Error(entered.name+' adds '+stop.detourMiles.toFixed(1)+' estimated driving-road detour miles (35-mile maximum). Select a directory stop closer to the delivery corridor.');
-   stop.verifiedEntrance=false;
-   return stop;
- }
- // Open-data first: avoid a paid POI lookup on every trip. The truck-route
- // service remains responsible for validating mileage and drive time.
  const candidates=[];
- // Automatically rank saved directory stops; never require the driver to inspect a directory.
+ const preferredIndex=manualStopQueue.findIndex(stop=>!stop.plannedKind||stop.plannedKind===kind);
+ if(preferredIndex>=0){
+  const preferred=manualStopQueue.splice(preferredIndex,1)[0];
+  if(preferred&&preferred.address)candidates.push(preferred);
+ }
  try{
-   const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network,targetMiles})});
-   if(response.ok){const data=await response.json();candidates.push(...(data.stops||[]));}
+  const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network,targetMiles})});
+  if(response.ok){const data=await response.json();candidates.push(...(data.stops||[]));}
  }catch(e){console.warn('Automatic stop directory unavailable:',e.message);}
- // Use the supplied address books directly; external open-data POI searches time out too often.
- // Also consider uploaded Pilot/Flying J, Love's, and TA/Petro addresses.
- // Keep the geocoding shortlist bounded to avoid overloading public geocoders.
  try{candidates.push(...await routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed));}catch(e){console.warn('Uploaded address directory lookup:',e.message);}
- // Check candidates against the planning road network; truck restrictions are NOT verified.
- // These are candidate facilities, NOT verified truck entrances.
- // Rank eligible locations by extra estimated driving-road miles, not straight-line proximity.
- // This discourages large detours but cannot validate truck access.
  if(directMiles===null)try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
- const eligible=[];
- // Pre-rank geographically before expensive truck-routing calls. The server
- // limits routing requests per minute; exhausting that budget previously made
- // all later stops appear unavailable and forced a preliminary plan.
- const nearCandidates=candidates.filter(s=>allowedBrand(brandOf(s.name),kind,network)&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lng)&&Math.hypot((+s.lat-origin.lat)*69,(+s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))>8)
-  .map(s=>({...s,approxMiles:Math.hypot((s.lat-origin.lat)*69,(s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))}))
-  .filter(s=>s.approxMiles<=maxMiles*1.25+20&&s.approxMiles>=Math.max(0,minMiles*.55-20))
-  .sort((a,b)=>Math.abs(a.approxMiles-targetMiles)-Math.abs(b.approxMiles-targetMiles));
- for(const stop of nearCandidates.slice(0,10)){
+
+ const assess=async(list)=>{
+  const eligible=[];
+  const nearCandidates=list.filter(s=>allowedBrand(brandOf(s.name||s.brand||''),kind,network)&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lng)&&Math.hypot((+s.lat-origin.lat)*69,(+s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))>8)
+   .map(s=>({...s,approxMiles:Math.hypot((s.lat-origin.lat)*69,(s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))}))
+   .filter(s=>s.approxMiles<=maxMiles*1.25+20&&s.approxMiles>=Math.max(0,minMiles*.55-20))
+   .sort((a,b)=>Math.abs(a.approxMiles-targetMiles)-Math.abs(b.approxMiles-targetMiles));
+  for(const stop of nearCandidates.slice(0,12)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
    if(!(miles>=Math.max(minMiles,kind==='rest'?15:1)&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
    let detourMiles=Infinity;
    if(directMiles!==null){
-     try{const via=await routeThrough([origin,stop,destination]);detourMiles=Math.max(0,via.distance/1609.344-directMiles);}catch(e){continue;}
-     if(detourMiles>35)continue; // avoid excessive detours; truck legality is not established
+    try{const via=await routeThrough([origin,stop,destination]);detourMiles=Math.max(0,via.distance/1609.344-directMiles);}catch(e){continue;}
+    if(detourMiles>35)continue;
    }
-   eligible.push({...stop,kind,miles,driveHours:hours,detourMiles,source:'Candidate stop — driving-road detour estimated; commercial truck restrictions and entrance unverified'});
+   eligible.push({...stop,kind,miles,driveHours:hours,detourMiles,source:'Automatically selected directory location — road distance estimated; truck restrictions and entrance not verified'});
+  }
+  eligible.sort((a,b)=>(Math.abs(a.miles-targetMiles)+Math.min(a.detourMiles,35)*2)-(Math.abs(b.miles-targetMiles)+Math.min(b.detourMiles,35)*2));
+  return eligible;
+ };
+ let eligible=await assess(candidates);
+ if(!eligible.length){
+  const status=document.getElementById('status');
+  if(status)status.innerHTML='<span class="spinner"></span>Searching additional nearby truck-stop listings automatically…';
+  try{
+   const response=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
+   if(response.ok){const data=await response.json();eligible=await assess(data.stops||[]);}
+  }catch(e){console.warn('Additional automatic stop lookup unavailable:',e.message);}
  }
- eligible.sort((a,b)=>(Math.abs(a.miles-targetMiles)+Math.min(a.detourMiles,35)*2)-(Math.abs(b.miles-targetMiles)+Math.min(b.detourMiles,35)*2));
  if(eligible.length)return eligible[0];
- // The supplied address books are the stop source. Do not call a licensed POI provider.
- throw new Error('No approved '+(kind==='break'?'fuel/break':'overnight')+' stop fits '+minMiles+'–'+maxMiles+' estimated road miles and available hours.');
+ throw new Error('Route Stride could not automatically locate a '+(kind==='break'?'break/fuel':'overnight rest')+' stop within '+minMiles+'–'+maxMiles+' estimated road miles and the available drive time. Adjust the trip window and try again.');
 }
 async function buildGenericPlan(){
  const status=document.getElementById('status'),gen=document.getElementById('generated');
  const trip=val('trip')||'UNNUMBERED',pickupAddress=val('pickup'),deliveryAddress=val('delivery');
  const maxHours=Number(val('maxHours')),avgSpeed=Number(val('avgSpeed')),cycle=Number(val('cycle'));
  if(!pickupAddress||!deliveryAddress)throw new Error('Pickup and delivery addresses are required.');
- manualStopQueue=Array.isArray(window.routeStrideSelectedStops)&&window.routeStrideSelectedStops.length?[...window.routeStrideSelectedStops]:(window.routeStrideSelectedStop?[window.routeStrideSelectedStop]:[]);manualStopMode=manualStopQueue.length>0;
+ manualStopQueue=Array.isArray(window.routeStrideSelectedStops)&&window.routeStrideSelectedStops.length?[...window.routeStrideSelectedStops]:(window.routeStrideSelectedStop?[window.routeStrideSelectedStop]:[]);
  if(!Number.isFinite(maxHours)||maxHours<1||maxHours>11||!Number.isFinite(avgSpeed)||avgSpeed<10||avgSpeed>75||!Number.isFinite(cycle)||cycle<=0)throw new Error('Enter drive hours from 1–11, speed from 10–75 mph, and positive cycle hours.');
  status.innerHTML='<span class="spinner"></span>Locating current trip addresses…';
  // Sequential public lookups avoid simultaneous requests from one browser.
@@ -475,7 +465,7 @@ async function buildGenericPlan(){
    const yard=await geocode(val('yard'));if(!yard)throw new Error('Could not locate starting yard.');
    const yardStop={name:'Starting yard',address:val('yard'),lat:yard.lat,lng:yard.lng};
    const yardRoute=await routeThrough([yardStop,pickupStop]);yardHours=legDriveHours(yardRoute,avgSpeed);yardMiles=yardRoute.distance/1609.344;
-   if(yardMiles>300||yardHours>=8||yardHours>=maxHours)throw new Error('The yard-to-pickup leg needs its own break/rest plan. Use the yard as the trip origin or review this move with dispatch.');
+   if(yardMiles>300||yardHours>=8||yardHours>=maxHours)throw new Error('The yard-to-pickup leg needs its own break/rest plan. Set the yard as the trip origin or shorten this move.');
    stops.unshift(yardStop);
  }
  let remaining=await routeThrough([current,deliveryStop]);
@@ -512,7 +502,7 @@ async function buildGenericPlan(){
        const end={...deliveryStop,miles,driveHours:hours};entries.push(end);stops.push(end);dayHours+=hours;dayMiles+=miles;current=end;break;
      }
      const kind=leg===0?'break':'rest';
-     if(kind==='break'&&shortTripRequiresOneBreak&&shortTripBreakAdded)throw new Error('Trips under 650 estimated road miles are limited to one 30-minute break/fuel stop. The available drive clock needs another break stop; review with dispatch.');
+     if(kind==='break'&&shortTripRequiresOneBreak&&shortTripBreakAdded)throw new Error('Trips under 650 estimated road miles are limited to one 30-minute break/fuel stop. The drive clock requires an additional break stop. Adjust the daily hours or route length.');
      status.innerHTML='<span class="spinner"></span>Day '+dayIndex+': finding '+(kind==='break'?'break/fuel':'overnight')+' stop within the available clock…';
      const stop=await selectTruckStop(current,deliveryStop,kind,val('network'),Math.min(maxHours-dayHours,leg===0?7.75-dayHours:7.75),avgSpeed,dayIndex===1&&leg===0&&document.getElementById('require300').checked,shortTripRequiresOneBreak&&kind==='break'&&!shortTripBreakAdded);
      if(kind==='break'&&shortTripRequiresOneBreak)shortTripBreakAdded=true;
@@ -520,13 +510,13 @@ async function buildGenericPlan(){
      remaining=await routeThrough([current,deliveryStop]);
    }
    // If the second leg cannot fit the clock, selectTruckStop fails explicitly.
-   if(dayHours+entries.filter(e=>e.kind==='break').length*0.5>14)throw new Error('Planned driving and break exceed the duty window; dispatcher review required.');
+   if(dayHours+entries.filter(e=>e.kind==='break').length*0.5>14)throw new Error('Planned driving and break exceed the duty window. Adjust the daily hours or split the plan.');
    totalHours+=dayHours;totalMiles+=dayMiles;days.push({entries,hours:dayHours,miles:dayMiles});
    if(current.kind==='delivery')break;
  }
- if(current.kind!=='delivery')throw new Error('Trip exceeds the 16-day planning limit. Split the trip with dispatch.');
- if(manualStopQueue.length)throw new Error('The selected Pilot / Flying J address was not used in the plan; choose a stop within the planned route and break window.');
- if(totalHours>cycle)throw new Error('Estimated driving needs '+totalHours.toFixed(1)+' hours, exceeding the entered '+cycle+' cycle hours. Update available hours or plan a reset/recap with dispatch.');
+ if(current.kind!=='delivery')throw new Error('Trip exceeds the 16-day planning limit. Split this route into separate trip plans.');
+
+ if(totalHours>cycle)throw new Error('Estimated driving needs '+totalHours.toFixed(1)+' hours, exceeding the entered '+cycle+' cycle hours. Update available cycle hours or divide the route around a reset/recap.');
  lastPlanStops=stops;lastOrigin=stops[0];lastDest=stops[stops.length-1];
  // Each selected leg has been road-estimated. No invented road geometry is exported.
  lastRoute={distance:totalMiles*1609.344,duration:totalHours*3600,geometry:null};
@@ -548,7 +538,7 @@ async function buildGenericPlan(){
    if(clock&&i<days.length-1)clock=new Date(clock.getTime()+10*3600000);
  });
  const late=clock&&appointment&&clock>new Date(appointment);
- status.innerHTML='<span class="'+(late?'warn':'ok')+'"><b>'+ (late?'APPOINTMENT AT RISK — REVIEW WITH DISPATCH.':'PRELIMINARY PLAN BUILT — TRUCK ROAD RESTRICTIONS NOT CHECKED.')+'</b></span>';
+ status.innerHTML='<span class="'+(late?'warn':'ok')+'"><b>'+ (late?'APPOINTMENT AT RISK — adjust the departure or daily schedule.':'PLAN BUILT — truck road restrictions are not checked.')+'</b></span>';
  gen.innerHTML=`<h2>Professional Driver Trip Plan</h2><div class="meta">Trip ${esc(trip)} • ${esc(val('driver'))} • Truck ${esc(val('truck'))} • Trailer ${esc(val('trailer'))}</div><div class="summary"><div class="metric">Estimated road distance<b>${totalMiles.toFixed(1)} mi</b></div><div class="metric">Drive estimate<b>${totalHours.toFixed(1)} hr</b></div><div class="metric">Drive days<b>${days.length}</b></div><div class="metric">First break target<b>${document.getElementById('require300').checked?'300+ mi':'~250 mi'}</b></div></div><div class="notice small"><b>Strategy:</b> Break/fuel and overnight legs target 200–300 estimated road miles, aiming near 250. ${shortTripRequiresOneBreak?'Trips under 650 estimated road miles include one scheduled 30-minute break/fuel stop; an overnight may still be planned when the available drive clock requires it.':'The first break target is about 250 estimated road miles.'} ${document.getElementById('require300').checked?'Alcohol-load rule: the first break/fuel stop after pickup must be at least 300 estimated road miles away.':''} Short legs may be needed for the final delivery or available driving clock.<br><b>Fuel network:</b> ${esc(val('network'))}<br><b>Company highways:</b> ${esc(val('notes'))}<br><b>Schedule:</b> Estimates include planned driving, 30-minute breaks and 10-hour overnight rests. Add loading, inspections, fuel service, traffic and other duty time; confirm appointment timezones and actual ELD hours. Highway notes do not force the routing corridor. Confirm it against dispatch. Parking availability is not guaranteed.${late?'<br><b>Delivery estimate is later than the appointment.</b>':''}</div>${wholeTripNavBlock()}${dayHtml}`;
  refreshStopVerification();document.getElementById('plan').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -613,43 +603,6 @@ function matchesSavedMilwaukeeTrip(){
  return !document.getElementById('require300').checked && val('trip')==='127532' && norm(val('pickup'))===norm('4041 N Richards St, Milwaukee, WI 53212') && norm(val('delivery'))===norm('2224 W 500 N, Springville, UT 84663') && val('deliveryTime')==='2026-10-12T08:00' && (!val('departureTime')||val('departureTime').startsWith('2026-10-09'));
 }
 
-async function buildPreliminaryPlan(options={}){
- const status=document.getElementById('status'),gen=document.getElementById('generated');
- const pickupAddress=val('pickup'),deliveryAddress=val('delivery');
- if(!pickupAddress||!deliveryAddress)throw new Error('Pickup and delivery addresses are required.');
- status.innerHTML='<span class="spinner"></span>Keeping the route available for dispatcher review…';
- const pickupGeo=await geocode(pickupAddress),deliveryGeo=await geocode(deliveryAddress);
- if(!pickupGeo||!deliveryGeo)throw new Error('Could not locate pickup or delivery for preliminary plan.');
- const pickup={name:'Pickup',address:pickupAddress,lat:pickupGeo.lat,lng:pickupGeo.lng,kind:'pickup'};
- const delivery={name:'Delivery',address:deliveryAddress,lat:deliveryGeo.lat,lng:deliveryGeo.lng,kind:'delivery'};
- const routeStops=[pickup];
- const yardAddress=val('yard');
- if(yardAddress&&yardAddress.toLowerCase().replace(/[^a-z0-9]/g,'')!==pickupAddress.toLowerCase().replace(/[^a-z0-9]/g,'')){
-   const yardGeo=await geocode(yardAddress);
-   if(!yardGeo)throw new Error('Could not locate starting yard for preliminary plan.');
-   routeStops.unshift({name:'Western Transport yard / Start',address:yardAddress,lat:yardGeo.lat,lng:yardGeo.lng,kind:'yard'});
- }
- routeStops.push(delivery);
- const route=await routeThrough(routeStops);
- const miles=route.distance/1609.344,hours=legDriveHours(route,Number(val('avgSpeed')));
- const daily=Number(val('maxHours')),cycle=Number(val('cycle'));
- if(!Number.isFinite(daily)||daily<=0||!Number.isFinite(cycle)||cycle<=0)throw new Error('Enter valid daily and cycle hours.');
- const count=Math.ceil(hours/daily);
- if(count>16)throw new Error('Trip exceeds the 16-day planning limit.');
- if(hours>cycle)throw new Error('Estimated drive time exceeds available cycle hours. Dispatcher must plan a reset or recap.');
- const blocks=Array.from({length:count},(_,i)=>{
-   const h=Math.min(daily,Math.max(0,hours-i*daily));
-   const m=(hours>0?miles*h/hours:0);
-   return '<div class="day"><h3>DAY '+(i+1)+(i===count-1?' — DELIVERY TARGET':'')+'</h3><div class="meta">Approx. '+m.toFixed(0)+' miles • '+h.toFixed(1)+' drive hours</div><div class="notice small">Break/fuel and overnight stops: NOT SELECTED. Dispatcher must choose approved stops on the verified truck corridor, confirm 30-minute breaks before the 8-hour driving limit, HOS, and available parking.</div></div>';
- }).join('');
- lastOrigin=routeStops[0];
- lastDest=routeStops[routeStops.length-1];
- lastPlanStops=routeStops;lastRoute=route;
- status.innerHTML='<span class="warn"><b>ROUTE DRAFT AVAILABLE — STOP SELECTION NEEDS DISPATCHER REVIEW. NOT READY FOR DISPATCH.</b></span>';
- const stopReason=options.stopError?'<div class="notice small"><b>Stop-selection exception:</b> '+esc(options.stopError)+'. The road route is retained; no fuel, break, or overnight location is assigned.</div>':'';
- gen.innerHTML='<h2>Preliminary Driver Trip Plan — Stops Unresolved</h2><div class="meta">Trip '+esc(val('trip')||'UNNUMBERED')+' • Start '+esc(routeStops[0].address)+'</div>'+stopReason+'<div class="summary"><div class="metric">Estimated estimated road miles<b>'+miles.toFixed(1)+'</b></div><div class="metric">Estimated driving<b>'+hours.toFixed(1)+' hr</b></div><div class="metric">Target drive days<b>'+count+'</b></div></div><div class="notice small"><b>Required review:</b> No fuel, break, or overnight locations have been assigned. Approved fuel network: '+esc(val('network'))+'. Company highways: '+esc(val('notes'))+'. Imported highway notes are not enforced by the routing engine. Day targets are estimates, not verified leg distances. Confirm company-approved truck route, addresses, stops, ELD/HOS, weather, and delivery appointment before use. '+(document.getElementById('require300').checked?'The 300-mile first-stop minimum has NOT been verified.':'The first-break mileage target has NOT been verified.')+'</div>'+blocks+'<div class="day"><h3>PRELIMINARY PICKUP → DELIVERY MAP & QR</h3><div class="notice small"><b>Pickup and delivery only.</b> This navigation does NOT include required fuel, 30-minute break, or overnight stops. It is not a dispatch-ready truck route. Verify the truck-safe corridor and add approved stops before driving.</div><div class="actions no-print"><a class="btn secondary" target="_blank" rel="noopener" href="'+esc(googleWholeTripUrl(lastPlanStops))+'">Google Maps — endpoints only</a><a class="btn secondary" target="_blank" rel="noopener" href="'+esc(appleWholeTripUrl(lastPlanStops))+'">Apple Maps — endpoints only</a></div><div class="qr"><img alt="Pickup to delivery Google Maps QR code; no intermediate stops" src="'+qrUrl(googleWholeTripUrl(lastPlanStops))+'"><b>Google Maps QR — endpoints only</b></div><div class="qr"><img alt="Pickup to delivery Apple Maps QR code; no intermediate stops" src="'+qrUrl(appleWholeTripUrl(lastPlanStops))+'"><b>Apple Maps QR — endpoints only</b></div></div>';
- document.getElementById('plan').scrollIntoView({behavior:'smooth',block:'start'});
-}
 
 
 function renderTripMapPins(coords){
@@ -713,30 +666,24 @@ async function buildPlan(){
  document.getElementById("generated").innerHTML="";
  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Building Trip Plan…';
  try{
-   const departure=val("departureTime"),appointment=val("deliveryTime");
-   if(departure&&appointment&&new Date(departure)>new Date(appointment))throw new Error("Departure must be before the delivery appointment.");
-   await buildGenericPlan();
-   const activeNetwork=val('network');
-   const disallowed=lastPlanStops.filter(s=>s.kind==='break'||s.kind==='rest').filter(s=>!allowedBrand(brandOf(s.name),s.kind,activeNetwork));
-   if(disallowed.length){lastPlanStops=[];lastRoute=null;document.getElementById('generated').innerHTML='';throw new Error('Network policy violation: '+disallowed.map(s=>s.name).join(', ')+' is not approved for '+activeNetwork+'. Trip plan blocked.');}
-   const timing=document.createElement("div");timing.className="notice small";
-   timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
-   document.getElementById("generated").prepend(timing);
+  const departure=val("departureTime"),appointment=val("deliveryTime");
+  if(departure&&appointment&&new Date(departure)>new Date(appointment))throw new Error("Departure must be before the delivery appointment.");
+  await buildGenericPlan();
+  const activeNetwork=val('network');
+  const disallowed=lastPlanStops.filter(s=>s.kind==='break'||s.kind==='rest').filter(s=>!allowedBrand(brandOf(s.name),s.kind,activeNetwork));
+  if(disallowed.length){lastPlanStops=[];lastRoute=null;document.getElementById('generated').innerHTML='';throw new Error('An automatically selected stop does not match the Route Stride stop policy. Generate the plan again.');}
+  const timing=document.createElement("div");timing.className="notice small";
+  timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
+  document.getElementById("generated").prepend(timing);
  }catch(e){
   console.error('Route Stride automatic stop selection failed:',e);
-  // A missing stop-directory match is a service-planning exception, not a reason
-  // to discard a routable trip. Preserve an explicitly preliminary route for
-  // dispatcher review; hard address, road-routing, cycle and HOS errors still stop.
-  if(/^No approved (?:fuel\/break|overnight) stop fits/i.test(String(e.message||''))){
-   try{await buildPreliminaryPlan({stopError:e.message});return;}
-   catch(preliminaryError){e=new Error(e.message+' Preliminary route review also failed: '+preliminaryError.message);}
-  }
   lastPlanStops=[];lastRoute=null;
   document.getElementById('generated').innerHTML='';
-  document.getElementById('status').innerHTML='<span class="error"><b>Trip plan could not finish:</b> '+esc(e.message)+'. Resolve the issue before dispatch.</span>';
+  document.getElementById('status').innerHTML='<span class="error"><b>Trip plan could not finish:</b> '+esc(e.message)+'. Adjust the trip inputs and try again.';
  }
  finally{controls.forEach((c,i)=>c.disabled=previousDisabled[i]);btn.disabled=false;btn.textContent="Generate Trip Plan"}
 }
+
 
 (function(){
  const form=document.querySelector('.form-card');
