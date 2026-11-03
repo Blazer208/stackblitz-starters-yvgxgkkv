@@ -157,7 +157,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}input,texta
    <button class="btn secondary" type="button" onclick="printProfessionalPlan()">Print / Save PDF</button>
    <button class="btn secondary" type="button" onclick="downloadRouteGPX()">Export Whole-Trip Garmin GPX</button>
   </div>
-  <div class="notice small" style="margin-top:12px"><label for="require300" style="display:flex;align-items:center;gap:9px"><input id="require300" type="checkbox" style="width:auto;margin:0"><b>Alcohol load:</b> require the first break/fuel stop to be at least 300 estimated road miles after pickup</label><div class="muted small" style="margin:6px 0 0 25px">Turns on automatically for alcohol loads. The planner searches the full available drive window, then shortens the first-stop target only if no listed 300-mile stop fits.</div></div>
+  <div class="notice small" style="margin-top:12px"><label for="require300" style="display:flex;align-items:center;gap:9px"><input id="require300" type="checkbox" style="width:auto;margin:0"><b>Alcohol load:</b> target the first break/fuel stop at 300+ estimated road miles when a suitable stop fits</label><div class="muted small" style="margin:6px 0 0 25px">Turns on automatically for alcohol loads. The planner first looks for a suitable stop at 300+ miles, then automatically shortens the target to the closest available listed stop if needed.</div></div>
   <div class="small muted">Trip details flow into the generated plan. Route estimates are planning aids only; actual ELD/PeopleNet, company truck routing, Garmin truck profile, posted restrictions, weather, and dispatch instructions control.</div>
  </div>
 
@@ -515,7 +515,6 @@ async function buildGenericPlan(){
        }
      }
      const alcoholFirstBreak=dayIndex===1&&leg===0&&document.getElementById('require300').checked;
-     if(alcoholFirstBreak&&miles<300)throw new Error('Delivery is within 300 miles of pickup, so the automatic 300-mile first-stop rule cannot fit. Adjust the route or schedule.');
      const forceShortTripBreak=shortTripRequiresOneBreak&&!shortTripBreakAdded&&dayIndex===1&&leg===0;
      if(hours<(leg===0?7.75-dayHours:7.75)&&dayHours+hours<=maxHours&&!forceShortTripBreak){
        const end={...deliveryStop,miles,driveHours:hours};entries.push(end);stops.push(end);dayHours+=hours;dayMiles+=miles;current=end;break;
