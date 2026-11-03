@@ -3,8 +3,8 @@
 <title>Dispatch Pro — Scan Dispatch Route</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#0a1220;color:#f4f7fb;font:16px system-ui,Arial}.wrap{max-width:900px;margin:auto;padding:20px}.card{border:1px solid #30445d;border-radius:15px;background:#111c2e;padding:18px;margin:18px 0}label{display:block;margin:12px 0 6px}input,textarea{width:100%;border-radius:9px;padding:12px;background:#091526;color:white;border:1px solid #385170}textarea{min-height:140px}button,.button{display:inline-block;margin:7px 7px 7px 0;border:0;border-radius:9px;padding:12px;background:#3b82f6;color:white;font-weight:700;text-decoration:none;cursor:pointer}button:disabled{opacity:.5}.secondary{background:#263e59}small,.muted{color:#afc1d8}.warn{color:#fbd38d} .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:620px){.grid{grid-template-columns:1fr}}</style></head>
-<body><div class="wrap"><h1>Scan Dispatch Route</h1><p class="muted">Import a PC*MILER routing sheet, review the extracted fields, then transfer them to the existing planner. This is a test feature; no route is verified truck-safe here.</p>
-<div class="card"><h2>1. Upload a route sheet</h2><label for="upload">Photo, screenshot, or PDF</label><input type="file" id="upload" accept="image/*,.pdf,application/pdf"><button id="scan" type="button">Read Route Sheet</button><p id="status" role="status">Choose a file to begin. Clear, straight-on photos work best.</p></div>
+<body><div class="wrap"><h1>Scan Dispatch Route</h1><p class="muted">Upload one or more PC*MILER report pages. Route Stride extracts the endpoints, total miles, stop, and highway sequence for review before transfer. OCR does not verify truck-safe routing.</p>
+<div class="card"><h2>1. Upload a route sheet</h2><label for="upload">PC*MILER report pages — select all pages together</label><input type="file" id="upload" accept="image/*,.pdf,application/pdf" multiple><button id="scan" type="button">Read &amp; Condense Report</button><p id="status" role="status">Choose a file to begin. Clear, straight-on photos work best.</p></div>
 <div class="card"><h2>Upload a load card (optional)</h2><label for="loadUpload">Load card photo, screenshot, or PDF</label><input type="file" id="loadUpload" accept="image/*,.pdf,application/pdf"><button id="scanLoad" type="button">Read Load Card</button><p id="loadStatus" role="status">Upload the load card for this same trip. Review appointments before transfer; pickup time is separate from your departure.</p><div class="grid"><div><label for="load_trip">Trip number</label><input id="load_trip"></div><div><label for="load_driver">Driver</label><input id="load_driver"></div><div><label for="load_truck">Truck</label><input id="load_truck"></div><div><label for="load_trailer">Trailer</label><input id="load_trailer"></div><div><label for="load_pickup">Pickup address</label><input id="load_pickup"></div><div><label for="load_delivery">Delivery address</label><input id="load_delivery"></div><div><label for="load_pickupTime">Pickup appointment</label><input id="load_pickupTime" type="datetime-local"></div><div><label for="load_deliveryTime">Delivery appointment</label><input id="load_deliveryTime" type="datetime-local"></div><div><label for="load_departureTime">Departure date and time (confirm separately)</label><input id="load_departureTime" type="datetime-local"></div><div><label for="load_weight">Load weight</label><input id="load_weight"></div><div><label for="load_commodity">Commodity / quantity</label><input id="load_commodity"></div><div><label for="load_reefer">Reefer instruction</label><input id="load_reefer"></div></div><label for="loadRaw">Load card text (editable)</label><textarea id="loadRaw"></textarea><button id="reparseLoad" class="secondary" type="button">Reprocess Load Card Text</button></div><div class="card"><h2>2. Review extracted details</h2><div class="grid"><div><label>Origin</label><input id="origin" placeholder="City, state or full address"></div><div><label>Destination</label><input id="destination" placeholder="City, state or full address"></div><div><label>Reported miles</label><input id="miles" placeholder="e.g. 1521.1"></div><div><label>Detected intermediate stop</label><input id="stop" placeholder="Stop / waypoint"></div></div>
 <label>Consolidated road sequence (editable)</label><textarea id="roads" placeholder="Interstates and highways in order"></textarea>
 <label>Extracted text — correct mistakes here before reprocessing</label><textarea id="raw" style="min-height:210px"></textarea><button class="secondary" id="reparse">Reprocess Edited Text</button></div>
@@ -17,28 +17,81 @@ function parseRoute(){
  const header=s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)\s*:\s*\d+\s*Stops?\b/i)
    ||s.match(/Route\s*1\s*:\s*(.+?)\s+to\s+(.+?)(?:\n|Miles\s*:)/i);
  if(header){$("origin").value=clean(header[1]);$("destination").value=clean(header[2]);}
- const miles=s.match(/\bMiles\s*:\s*([\d,]+(?:\.\d+)?)/i);if(miles)$("miles").value=miles[1];
- const stop=s.match(/^\s*Stop\s*1\s*:\s*(.+?)(?=\s{2,}\d+:\d{2}\b|\s*\(On-Duty\)|$)/im);
- if(stop)$("stop").value=clean(stop[1]);
+ // PC*MILER Route 1 Reports puts both addresses on one line instead of using "Route 1:".
+ const reportHeader=s.match(/^\s*(.+?,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)\s+To\s+(.+?,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)/im);
+ if(!header&&reportHeader){$("origin").value=clean(reportHeader[1]);$("destination").value=clean(reportHeader[2]);}
+
+ const miles=s.match(/\bMiles\s*:\s*([\d,]+(?:\.\d+)?)/i);
+ if(miles){$("miles").value=miles[1];}
+ else{
+  // On Route 1 Reports, the final arrival row contains leg miles/time followed by total miles/time.
+  const destinationCity=clean($("destination").value).split(",")[0].toLowerCase();
+  const destinationLines=s.split("\n").filter(line=>destinationCity&&line.toLowerCase().includes(destinationCity));
+  let totalMiles="";
+  for(let i=destinationLines.length-1;i>=0&&!totalMiles;i--){
+   const pairs=Array.from(destinationLines[i].matchAll(/([\d,]+(?:\.\d+)?)\s+\d{1,2}:\d{2}\b/g));
+   if(pairs.length)totalMiles=pairs[pairs.length-1][1];
+  }
+  if(totalMiles)$("miles").value=totalMiles;
+ }
+
+ const explicitStop=s.match(/^\s*Stop\s*1\s*:\s*(.+?)(?=\s{2,}\d+:\d{2}\b|\s*\(On-Duty\)|$)/im);
+ if(explicitStop)$("stop").value=clean(explicitStop[1]);
+ else{
+  // Route 1 Reports mark stops with an "Arrive Loaded" heading; skip origin and destination.
+  const lines=s.split("\n").map(clean);
+  const originCity=clean($("origin").value).split(",")[0].toLowerCase();
+  const destinationCity=clean($("destination").value).split(",")[0].toLowerCase();
+  let detected="";
+  for(let i=0;i<lines.length&&!detected;i++){
+   if(!/Arrive Loaded/i.test(lines[i]))continue;
+   const inline=lines[i].replace(/^.*?Arrive Loaded/i,"").trim();
+   const candidates=[inline,...lines.slice(i+1,i+4)];
+   for(let candidate of candidates){
+    candidate=clean(candidate).replace(/^\d+[.)]?\s+/,"").replace(/,\s*US$/i,"");
+    if(!candidate||!/(\b[A-Z]{2}\s+\d{5}\b|,\s*[A-Z]{2}\b)/i.test(candidate))continue;
+    const city=candidate.split(/,\s*[A-Z]{2}\b/)[0].toLowerCase();
+    if(city.includes(originCity)||city.includes(destinationCity))continue;
+    detected=candidate;break;
+   }
+  }
+  if(detected)$("stop").value=detected;
+ }
+
  const roads=[];let rowCount=0;
- // Read ONLY the actual PC*MILER Route column; do not mistake interchange roads for travelled roads.
- const row=/^\s*([A-Z]{2})\s+(?:(?:\$)\s+)?(Keep\s+(?:right|left)|North|South|East|West|Right|Left|Straight|Turn around)\s+(.+?)\s{2,}(\d+(?:\.\d+)?)\s+\d+:\d{2}\s+/i;
+ const addRoad=(direction,roadText)=>{
+  const highway=roadText.match(/\b(I|US|U\.S\.|[A-Z]{2})\s*[-–—]?\s*(\d{1,4}[A-Z]?)\b(?:\s+(Business|Bus(?:iness)?))?/i);
+  if(!highway)return;
+  const prefix=highway[1].replace(/\./g,"").toUpperCase();
+  const suffix=highway[3]?" Business":"";
+  const directionName=direction?direction[1].toLowerCase().replace(/^./,c=>c.toUpperCase())+" ":"";
+  const name=directionName+prefix+"-"+highway[2].toUpperCase()+suffix;
+  const key=name.replace(/\s+Business$/i,"").toUpperCase();
+  const previous=roads[roads.length-1]||"";
+  if(previous.replace(/\s+Business$/i,"").toUpperCase()===key){
+   if(suffix&&!/\sBusiness$/i.test(previous))roads[roads.length-1]=name;
+   return;
+  }
+  roads.push(name);
+ };
  for(const line of s.split("\n")){
-  const m=line.match(row);if(!m)continue;
+  const row=line.match(/^\s*[A-Z]{2}\s+(.+)$/);
+  if(!row)continue;
+  const field=row[1].split(/\s*\+\s*/)[0].trim();
+  if(!/^(?:Keep\s+(?:right|left)|North|South|East|West|N|S|E|W|Right|Left|Straight|Turn around)\b/i.test(row[1]))continue;
   rowCount++;
-  const roadText=clean(m[3]);
-  // Ignore ramps, local roads and exits in the condensed highway overview.
-  const highway=roadText.match(/^(I|US|ID|MT|WY|SD|MN|WI)\s*[-–—]\s*(\d+)(?:\s+(Business|Bus))?\b/i);
-  if(!highway)continue;
-  const name=highway[1].toUpperCase()+"-"+highway[2]+(highway[3]?" Business":"");
-  if(roads[roads.length-1]!==name)roads.push(name);
+  // Keep the road being travelled; the interchange column can name the next ramp/road early.
+  const direction=field.match(/^(North|South|East|West|N|S|E|W)\s+/i);
+  if(!direction)continue;
+  addRoad(direction,field.slice(direction[0].length));
  }
  $("roads").value=roads.join(" → ");
  $("reviewed").checked=false;
  $("status").textContent=roads.length
-  ?"Extracted "+roads.length+" ordered highway sections from "+rowCount+" PC*MILER road rows. Confirm all roads, stops and truck restrictions before transfer."
-  :rowCount?"Read "+rowCount+" road rows, but no highway names were recognized. Check the editable extracted text."
-  :"PDF text was extracted, but PC*MILER road rows were not recognized. Review the text below or enter highways manually.";
+  ?"Condensed "+roads.length+" highway sections from "+rowCount+" PC*MILER road rows. Check the endpoints, stop, miles, route order, and truck restrictions before transfer."
+  :rowCount
+   ?"Read "+rowCount+" road rows, but no highway names were recognized. Check the editable extracted text."
+   :"No PC*MILER road rows were recognized. For a multi-page report, select every page together; check the extracted text below or enter highways manually.";
 }
 
 const loadFields=["trip","driver","truck","trailer","pickup","delivery","pickupTime","deliveryTime","departureTime","weight","commodity","reefer"];
@@ -138,10 +191,20 @@ document.querySelectorAll('input:not(#reviewed),textarea').forEach(el=>el.addEve
 
 $("reparse").onclick=parseRoute;
 $("scan").onclick=async()=>{
- const file=$("upload").files[0];if(!file){$("status").textContent="Choose a photo or PDF first.";return;}
+ const files=Array.from($("upload").files||[]).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+ if(!files.length){$("status").textContent="Choose all report pages or a PDF first.";return;}
  $("scan").disabled=true;$("scanLoad").disabled=true;
- try{$("raw").value=await readSheet(file,"status");parseRoute();}
- catch(e){$("status").textContent="Could not read this file: "+e.message+" You can paste text into the review box.";}
+ try{
+  const pages=[];
+  for(let i=0;i<files.length;i++){
+   $("status").textContent="Reading page "+(i+1)+" of "+files.length+"…";
+   pages.push(await readSheet(files[i],"status"));
+  }
+  $("raw").value=pages.join("\n");
+  parseRoute();
+  $("status").textContent="Read "+files.length+" page"+(files.length===1?"":"s")+". "+$("status").textContent;
+ }
+ catch(e){$("status").textContent="Could not read this report: "+e.message+" You can paste text into the review box.";}
  finally{$("scan").disabled=false;$("scanLoad").disabled=false;}
 };
 
