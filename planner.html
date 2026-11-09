@@ -268,7 +268,7 @@ function renderNavigationLinks(){
  <div class="notice small"><b>Hammer:</b> Each linked leg supports up to five waypoints. Open legs in numbered order. This plan has ${lastPlanStops.length} locations, including addresses without GPS coordinates. ${hammerDetails} Verify all locations and your truck settings in Hammer before starting. <b>Apple Maps:</b> Apple Maps web links cannot reliably import all intermediate stops. Use the individual Stop links in order; they are not one multi-stop route. Confirm destination name, entrance, and truck restrictions in your truck navigation app.</div></div>`;
 }
 async function fetchTimed(url,options={}){
- const r=await fetch(url,{...options,signal:AbortSignal.timeout(30000)});
+ const r=await fetch(url,{...options,credentials:'same-origin',signal:AbortSignal.timeout(30000)});
  if(r.status===429){let message='Too many planning requests. Wait a moment, then retry.';try{message=(await r.clone().json()).error||message;}catch(e){}const error=new Error(message);error.status=429;throw error;}
  return r;
 }
