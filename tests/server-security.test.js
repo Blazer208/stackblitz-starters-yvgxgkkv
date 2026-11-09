@@ -18,6 +18,7 @@ test('server blocks direct planner/API access, uses real sessions, and persists 
  try{
   await start();
   const page=await fetch(base+'/planner.html',{redirect:'manual'});assert.equal(page.status,302);assert.equal(page.headers.get('location'),'/login.html');
+  assert.equal((await fetch(base+'/signed-bol.html',{redirect:'manual'})).status,302);
   assert.equal((await post('/api/truck-route',{points:[]})).status,401);
   assert.equal((await fetch(base+'/auth.js')).status,404);
   assert.equal((await fetch(base+'/index.js')).status,404);
@@ -25,6 +26,7 @@ test('server blocks direct planner/API access, uses real sessions, and persists 
   const signup=await post('/api/auth/signup',{name:'Integration Tester',email:'integration@example.com',password:'A unique integration password 90247',invite:setup});assert.equal(signup.status,201);
   const cookie=signup.headers.get('set-cookie').split(';')[0];
   const authorized=await fetch(base+'/planner.html',{headers:{Cookie:cookie}});assert.equal(authorized.status,200);assert.match(await authorized.text(),/Dispatcher Trip Planner/);
+  const bolPage=await fetch(base+'/signed-bol.html',{headers:{Cookie:cookie}});assert.equal(bolPage.status,200);assert.match(await bolPage.text(),/Share signed BOL/);
   assert.match(authorized.headers.get('content-security-policy'),/frame-ancestors 'none'/);
   assert.equal((await post('/api/truck-route',{points:[]},cookie,'https://attacker.example')).status,403);
   assert.equal((await post('/api/truck-route',{points:[]},cookie)).status,400);
