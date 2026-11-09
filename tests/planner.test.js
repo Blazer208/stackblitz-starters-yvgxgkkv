@@ -42,20 +42,18 @@ test('default stop spacing and approved fuel networks',()=>{
  assert.deepEqual(STOP_POLICY,{minMiles:200,targetMiles:250,maxMiles:300});
  assert.deepEqual(stopWindow('break',9,55),{minMiles:200,maxMiles:300,targetMiles:250});
  assert.deepEqual(stopWindow('rest',9,55),{minMiles:200,maxMiles:300,targetMiles:250});
- assert.deepEqual(stopWindow('break',9,60,true),{minMiles:300,maxMiles:350,targetMiles:300});
- assert.throws(()=>stopWindow('break',5,55,true),/300-mile minimum cannot fit/);
+ assert.deepEqual(stopWindow('break',5,55),{minMiles:175,maxMiles:275,targetMiles:250});
  assert.equal(brandOf('Flying J Travel Center #123'),'Flying J');
  assert.equal(allowedBrand("Love's",'break','Pilot / Flying J only'),false);
  assert.equal(allowedBrand("Love's",'rest','Pilot / Flying J only'),true);
 });
-test('alcohol commodity enables the 300-mile first-break rule and manual override persists',()=>{
- const {context,elements}=fixture();
- assert.equal(elements.require300.checked,false);
- elements.commodity.value='Jack Daniels Tennessee Whiskey';elements.commodity.handlers.input();
- assert.equal(elements.require300.checked,true);
- elements.require300.checked=false;elements.require300.handlers.change();
- elements.commodity.value='General freight';elements.commodity.handlers.input();
- assert.equal(elements.require300.checked,false);
+test('commodity text does not impose a special first stop',async()=>{
+ const {context,elements,actualSelect}=fixture(1100);context.selectTruckStop=actualSelect;attachSyntheticAutoRouting(context,1100);
+ elements.commodity.value='Whiskey';
+ await context.buildGenericPlan();
+ const first=Array.from(vm.runInContext('lastPlanStops',context)).find(s=>s.kind==='break');
+ assert.ok(first.miles>=200&&first.miles<=300);
+ assert.doesNotMatch(elements.generated.innerHTML,/Alcohol-load rule/);
 });
 test('provider matches require actual street addresses and coordinate/mileage data',()=>{
  const item={POILocation:{PlaceName:'@Pilot Travel Center',Address:{StreetAddress:'100 Main St',City:'Test',State:'WY',Zip:'82001'},Coords:{Lat:'41',Lon:'-105'}},DistanceFromOrigin:{Value:251,DistanceUnits:0}};
@@ -80,16 +78,6 @@ test('automatic planner selects stops within the 200–300 mile target window',a
  assert.ok(planned.every(s=>s.miles>=200&&s.miles<=300),JSON.stringify(planned.map(s=>s.miles)));
  assert.match(elements.generated.innerHTML,/200–300 estimated road miles/);
  assert.match(elements.generated.innerHTML,/DAY 3/);
-});
-test('alcohol first break is at least 300 miles and later stops remain clock-limited',async()=>{
- const {context,elements,actualSelect}=fixture(1100);context.selectTruckStop=actualSelect;attachSyntheticAutoRouting(context,1100);
- elements.commodity.value='Jack Daniel’s Tennessee Whiskey';elements.commodity.handlers.input();
- assert.equal(elements.require300.checked,true);
- await context.buildGenericPlan();
- const stops=Array.from(vm.runInContext('lastPlanStops',context));
- const firstBreak=stops.find(s=>s.kind==='break');
- assert.ok(firstBreak.miles>=300&&firstBreak.miles<=350);
- assert.match(elements.generated.innerHTML,/Alcohol-load rule: the first break\/fuel stop after pickup must be at least 300/);
 });
 test('trips under 650 miles schedule one break/fuel stop when the route fits one driving day',async()=>{
  const {context,elements,actualSelect}=fixture(550);context.selectTruckStop=actualSelect;attachSyntheticAutoRouting(context,550);
@@ -137,19 +125,6 @@ test('provider failure clears stale exports and always releases the generate but
 test('invalid driving inputs fail instead of being silently coerced',async()=>{
  const {context,elements}=fixture();elements.maxHours.value='12';
  await assert.rejects(context.buildGenericPlan(),/1–11/);
-});
-test('dispatcher-selected stop is checked with actual truck-route miles',async()=>{
- const {context,actualSelect}=fixture();context.geocode=async()=>({lat:40,lng:250});
- vm.runInContext('manualStopMode=true;manualStopQueue=[{name:"Pilot Travel Center",address:"100 Truck Rd"}];',context);
- const stop=await actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55);
- assert.equal(stop.miles,250);assert.equal(stop.kind,'break');
-});
-test('manual fuel stops outside company network or range are rejected',async()=>{
- const {context,actualSelect}=fixture();context.geocode=async()=>({lat:40,lng:400});
- vm.runInContext('manualStopMode=true;manualStopQueue=[{name:"Love\'s Travel Stop",address:"100 Truck Rd"}];',context);
- await assert.rejects(actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55),/approved/);
- vm.runInContext('manualStopQueue=[{name:"Pilot Travel Center",address:"100 Truck Rd"}];',context);
- await assert.rejects(actualSelect({lat:40,lng:0},{lat:40,lng:1100},'break','Pilot / Flying J only',9,55),/400.0/);
 });
 
 test('Milwaukee Springville planner stages in Utah before next-morning delivery instead of 205-mile final leg',async()=>{

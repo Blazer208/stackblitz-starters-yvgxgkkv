@@ -1,14 +1,12 @@
 // Shared truck-stop policy; distances are truck-route miles, never air miles.
 const STOP_POLICY = Object.freeze({minMiles:200,targetMiles:250,maxMiles:300});
-function stopWindow(kind,hoursLeft,speed,require300=false){
+function stopWindow(kind,hoursLeft,speed){
  if(!['break','rest'].includes(kind)||!Number.isFinite(hoursLeft)||hoursLeft<=0||!Number.isFinite(speed)||speed<10||speed>75)throw new Error('Invalid stop-planning hours or speed.');
  const clockMiles=Math.floor(Math.min(hoursLeft,7.75)*speed);
- const preferredMax=kind==='break'&&require300?clockMiles:STOP_POLICY.maxMiles;
- const maxMiles=Math.min(preferredMax,clockMiles);
+ const maxMiles=Math.min(STOP_POLICY.maxMiles,clockMiles);
  if(maxMiles<1)throw new Error('No driving time remains for another leg.');
- // Alcohol loads prefer a 300-mile first leg; the planner can shorten it if no stop fits.
- const minMiles=require300?300:Math.max(0,Math.min(STOP_POLICY.minMiles,maxMiles-100));
- return {minMiles,maxMiles,targetMiles:require300?Math.min(300,maxMiles):Math.min(STOP_POLICY.targetMiles,maxMiles)};
+ const minMiles=Math.max(0,Math.min(STOP_POLICY.minMiles,maxMiles-100));
+ return {minMiles,maxMiles,targetMiles:Math.min(STOP_POLICY.targetMiles,maxMiles)};
 }
 function brandOf(name) {
   if (/\bflying\s*j\b/i.test(name)) return 'Flying J';

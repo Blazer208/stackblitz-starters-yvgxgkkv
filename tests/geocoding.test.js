@@ -41,7 +41,7 @@ test('pre-geocoded TA/Petro candidate with full state name is accepted without p
  const result=await ctx.routeStrideAddressCandidates(
   {lat:41.1,lng:-101.5,address:'100 Route, North Platte, NE 69101'},
   {lat:41.1,lng:-100,address:'200 Route, North Platte, NE 69101'},
-  'rest','Pilot / Flying J only',75,55);
+  'rest','automatic-fallback',75,55);
  assert.equal(result.length,1);
  assert.equal(result[0].brand,'TA');
 });

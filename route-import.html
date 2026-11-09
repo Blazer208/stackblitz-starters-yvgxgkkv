@@ -168,6 +168,18 @@ function parseLoadCard(){
  $("reviewed").checked=false;
  $("loadStatus").textContent="Load card read. Check the trip number, pickup and delivery addresses, appointments, weight, and commodity. Blank fields on the card remain blank; departure is not inferred from pickup time.";
 }
+async function recognizeImage(source,statusId){
+ if(!window.Tesseract){
+  const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+  await new Promise((res,rej)=>{script.onload=res;script.onerror=()=>rej(Error("Image reader could not load."));document.head.appendChild(script);});
+ }
+ if(!window.routeOcrWorker){
+  window.routeOcrWorker=Tesseract.createWorker("eng").catch(error=>{window.routeOcrWorker=null;throw error;});
+ }
+ const worker=await window.routeOcrWorker;
+ await worker.setParameters({tessedit_pageseg_mode:"11",preserve_interword_spaces:"1"});
+ return (await worker.recognize(source)).data.text||"";
+}
 async function readSheet(file,statusId){
  if(file.type==="application/pdf"||/\.pdf$/i.test(file.name)){
   $(statusId).textContent="Reading PDF pages and reconstructing route rows…";
@@ -177,6 +189,7 @@ async function readSheet(file,statusId){
   let text="";
   for(let p=1;p<=Math.min(pdf.numPages,12);p++){
    const page=await pdf.getPage(p),content=await page.getTextContent();
+   let pageText="";
    const lines=[];
    // PDF.js text items can be fragmented or have no EOL; group by actual page Y position.
    for(const item of content.items){
@@ -196,18 +209,22 @@ async function readSheet(file,statusId){
      if(lastEnd!==null){const gap=part.x-lastEnd;out+=gap>9?"   ":" ";}
      out+=part.str;lastEnd=part.x+width;
     }
-    text+=out.trimEnd()+"\n";
+    pageText+=out.trimEnd()+"\n";
    }
+   if(pageText.trim().length<60){
+    $(statusId).textContent="Reading scanned PDF page "+p+" of "+Math.min(pdf.numPages,12)+"…";
+    const viewport=page.getViewport({scale:2});
+    const canvas=document.createElement("canvas");canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+    await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+    pageText=await recognizeImage(canvas,statusId);
+   }
+   text+=pageText;
    text+="\n";
   }
-  if(text.trim().length<60)throw Error("No selectable PDF text detected. Upload a clear image instead.");
+  if(text.trim().length<20)throw Error("Could not read text from this PDF. Upload a clearer scan or enter the details manually.");
   return text;
  }
  $(statusId).textContent="Reading image text on your device…";
- if(!window.Tesseract){
-  const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-  await new Promise((res,rej)=>{script.onload=res;script.onerror=()=>rej(Error("Image reader could not load."));document.head.appendChild(script);});
- }
  let bitmap,source=file;
  try{
   bitmap=await createImageBitmap(file);
@@ -226,12 +243,7 @@ async function readSheet(file,statusId){
   source=canvas;
  }catch(e){}
  finally{if(bitmap&&bitmap.close)bitmap.close();}
- if(!window.routeOcrWorker){
-  window.routeOcrWorker=Tesseract.createWorker("eng").catch(error=>{window.routeOcrWorker=null;throw error;});
- }
- const worker=await window.routeOcrWorker;
- await worker.setParameters({tessedit_pageseg_mode:"11",preserve_interword_spaces:"1"});
- return (await worker.recognize(source)).data.text||"";
+ return recognizeImage(source,statusId);
 }
 
 $("scanLoad").onclick=async()=>{
