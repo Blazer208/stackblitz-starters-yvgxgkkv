@@ -413,7 +413,6 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
   const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network,targetMiles})});
   if(response.ok){const data=await response.json();candidates.push(...(data.stops||[]));}
  }catch(e){console.warn('Automatic stop directory unavailable:',e.message);}
- try{candidates.push(...await routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed));}catch(e){console.warn('Uploaded address directory lookup:',e.message);}
  if(directMiles===null)try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
 
  const assess=async(list,wideRange=false,anyNetwork=false)=>{
@@ -449,6 +448,9 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
  if(!eligible.length){
   const status=document.getElementById('status');
   if(status)status.innerHTML='<span class="spinner"></span>Expanding the stop search and adjusting spacing automatically…';
+  try{const addresses=await routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed);candidates.push(...addresses);eligible=await assess(addresses);}catch(e){if(e.status===429)throw e;console.warn('Uploaded address directory lookup:',e.message);}
+ }
+ if(!eligible.length){
   try{
    const response=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
    if(response.ok){const data=await response.json();additionalCandidates=data.stops||[];eligible=await assess(additionalCandidates);}
