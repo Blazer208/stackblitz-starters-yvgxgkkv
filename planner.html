@@ -448,9 +448,6 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
  if(!eligible.length){
   const status=document.getElementById('status');
   if(status)status.innerHTML='<span class="spinner"></span>Expanding the stop search and adjusting spacing automatically…';
-  try{const addresses=await routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed);candidates.push(...addresses);eligible=await assess(addresses);}catch(e){if(e.status===429)throw e;console.warn('Uploaded address directory lookup:',e.message);}
- }
- if(!eligible.length){
   try{
    const response=await fetchTimed('/api/osm-truck-stops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network})});
    if(response.ok){const data=await response.json();additionalCandidates=data.stops||[];eligible=await assess(additionalCandidates);}
@@ -480,6 +477,22 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
    if(eligible.length){usedExpandedNetwork=true;usedAdjustedSpacing=minMiles<originalMin;break;}
   }
   minMiles=originalMin;targetMiles=originalTarget;
+ }
+ if(!eligible.length){
+  // Address-only listings require public geocoding. Try mapped and live stop
+  // candidates first so an unavailable geocoder cannot stall ordinary trips.
+  try{
+   const addresses=await routeStrideAddressCandidates(origin,destination,kind,'automatic-fallback',targetMiles,speed);
+   const originalMin=minMiles,originalTarget=targetMiles;
+   for(const floor of kind==='rest'?[100,50,15]:[150,100,50,1]){
+    minMiles=Math.min(originalMin,Math.max(kind==='rest'?15:1,Math.min(floor,maxMiles-1)));
+    if(maxMiles<minMiles)continue;
+    targetMiles=Math.max(minMiles,Math.min(originalTarget,(minMiles+maxMiles)/2));
+    eligible=await assess(addresses,true,true);
+    if(eligible.length){usedExpandedNetwork=true;usedAdjustedSpacing=minMiles<originalMin;break;}
+   }
+   minMiles=originalMin;targetMiles=originalTarget;
+  }catch(e){if(e.status===429)throw e;console.warn('Uploaded address directory lookup:',e.message);}
  }
  if(eligible.length){
   const selected=eligible[0];
