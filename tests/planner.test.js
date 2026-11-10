@@ -47,6 +47,24 @@ test('default stop spacing and approved fuel networks',()=>{
  assert.equal(allowedBrand("Love's",'break','Pilot / Flying J only'),false);
  assert.equal(allowedBrand("Love's",'rest','Pilot / Flying J only'),true);
 });
+test('print preview opens for a built plan without the removed strategy field',()=>{
+ const {context,elements}=fixture();
+ elements.weight={value:'41,127 lb'};
+ elements.generated.textContent='A built trip';
+ elements.plan.textContent='Professional Driver Trip Plan';
+ const classes=new Set();
+ elements.printReport={innerHTML:'',classList:{add(c){classes.add(c)}},setAttribute(k,v){this[k]=v},scrollIntoView(){}};
+ context.document.querySelectorAll=()=>[];
+ vm.runInContext("lastPlanStops=[{name:'Start',address:'100 Main St',kind:'pickup'},{name:'End',address:'200 Main St',kind:'delivery'}]",context);
+ context.printProfessionalPlan();
+ assert.ok(classes.has('previewOpen'));
+ assert.equal(elements.printReport['aria-hidden'],'false');
+ assert.match(elements.printReport.innerHTML,/Print \/ Save as PDF/);
+ assert.match(elements.printReport.innerHTML,/41,127 lb/);
+ assert.doesNotMatch(elements.printReport.innerHTML,/41,127 lb lb/);
+ assert.match(elements.printReport.innerHTML,/Directions QR/);
+ assert.match(elements.printReport.innerHTML,/Google Maps QR/);
+});
 test('commodity text does not impose a special first stop',async()=>{
  const {context,elements,actualSelect}=fixture(1100);context.selectTruckStop=actualSelect;attachSyntheticAutoRouting(context,1100);
  elements.commodity.value='Whiskey';
