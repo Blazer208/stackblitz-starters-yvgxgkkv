@@ -17,7 +17,7 @@ const stops=[
 function fixture(){
  const fields={trip:'127532',driver:'Test Driver',truck:'237',trailer:'5206',network:'Pilot / Flying J only',notes:'I-94 I-80 I-15',strategy:'Two stops per day',departureTime:'2026-10-18T08:00',deliveryTime:'2026-10-21T08:00'};
  const nodes={};
- const getElementById=id=>nodes[id]??(nodes[id]={value:fields[id]||'',innerHTML:'',textContent:'',scrollIntoView(){},classList:{add(){},remove(){}},disabled:false});
+ const getElementById=id=>nodes[id]??(nodes[id]={value:fields[id]||'',innerHTML:'',textContent:'',scrollIntoView(){},setAttribute(k,v){this[k]=v},classList:{add(){},remove(){}},disabled:false});
  const document={getElementById,querySelector:()=>null,querySelectorAll:()=>[{textContent:'1515 mi'},{textContent:'29.2 hr'},{textContent:'4 days'}]};
  const context=vm.createContext({STOP_POLICY,stopWindow,brandOf,allowedBrand,document,window:{},sessionStorage:{getItem:()=>null},console,AbortSignal,setTimeout,Blob});
  vm.runInContext(script,context);
