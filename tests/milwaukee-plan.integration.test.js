@@ -17,7 +17,7 @@ test('Milwaukee-to-Springville saved trip builds its stops, navigation, GPX and 
   overallFeet:'75',widthInches:'102',heightInches:'162',grossWeight:'80000',trailerFeet:'53'};
  const nodes={};const getElementById=id=>nodes[id]??(nodes[id]={
   value:fields[id]||'',innerHTML:'',textContent:'',disabled:false,checked:false,
-  classList:{add(){},remove(){}},prepend(){},scrollIntoView(){}
+  classList:{add(){},remove(){}},setAttribute(k,v){this[k]=v},prepend(){},scrollIntoView(){}
  });
  const document={getElementById,querySelector:()=>null,querySelectorAll:()=>[
   {textContent:'1,500 mi'},{textContent:'29 hr'},{textContent:'4 days'}
