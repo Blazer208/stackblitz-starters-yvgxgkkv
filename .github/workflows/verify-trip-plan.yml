@@ -1,0 +1,20 @@
+name: Verify Route Stride PDF preview and planner
+on:
+  push:
+    branches: [main, feature/nationwide-truck-parking-db]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax validation
+        run: node --check index.js && node --check scripts/import-truck-parking-geojson.js
+      - name: Automated planner, PDF preview and importer tests
+        run: npm test
