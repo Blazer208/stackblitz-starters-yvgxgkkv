@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Route Stride | BOL to PDF</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#182334;background:#f2f5f9}
+body{margin:0}.wrap{max-width:760px;margin:auto;padding:22px}h1{margin-bottom:5px}p{line-height:1.5}
+.panel{background:white;border-radius:14px;padding:20px;margin:16px 0;box-shadow:0 2px 12px #12213b12}
+input{max-width:100%}button,.action{border:0;background:#174f93;color:white;padding:12px 16px;border-radius:9px;font-weight:650;cursor:pointer;margin:6px 6px 6px 0}
+button:disabled{opacity:.5;cursor:not-allowed}.secondary{background:#e6edf6;color:#173a65}
+.page{margin:16px 0;border:1px solid #d1d8e0;background:white;padding:10px;break-after:page;page-break-after:always}
+.page img{display:block;width:100%;height:auto;max-height:245mm;object-fit:contain}
+.small{color:#516273;font-size:.92rem}.hide-print{}
+@page{size:letter;margin:10mm}
+@media print{body{background:white}.hide-print{display:none!important}.wrap{max-width:none;padding:0}.page{border:0;margin:0;padding:0;box-shadow:none}.page:last-child{break-after:auto;page-break-after:auto}}
+</style></head><body><main class="wrap">
+<div class="hide-print"><h1>Bill of Lading → PDF</h1><p>Scan paper BOL pages with your camera or upload existing photos. Arrange them in order, then save as a multi-page PDF. Original signatures and markings remain visible.</p>
+<div class="panel"><label><strong>Add BOL pages</strong><br><input id="files" type="file" accept="image/*" multiple></label>
+<p class="small">On iPhone, choose Take Photo or Photo Library. For an existing PDF, keep the original PDF—this tool converts photos, not PDF files.</p>
+<button id="print" disabled>Print / Save as PDF</button><button id="clear" class="secondary">Clear pages</button>
+<p id="status" role="status" aria-live="polite">No pages selected.</p>
+<p class="small">iPhone: choose Print, expand the print preview, then Share → Save to Files. Desktop: choose Save as PDF. Images stay in your browser and are not uploaded to Route Stride.</p></div></div>
+<section id="pages" aria-label="BOL pages"></section></main>
+<script>
+'use strict';
+const input=document.getElementById('files'), pages=document.getElementById('pages'), status=document.getElementById('status'), printButton=document.getElementById('print');
+const items=[];
+function render(){
+ pages.replaceChildren();
+ items.forEach((item,i)=>{
+  const page=document.createElement('article');page.className='page';
+  const img=document.createElement('img');img.src=item.url;img.alt='BOL page '+(i+1);
+  page.append(img);
+  const actions=document.createElement('div');actions.className='hide-print';
+  for(const [label,delta] of [['Move up',-1],['Move down',1]]){
+   const button=document.createElement('button');button.className='secondary';button.textContent=label;button.disabled=i+delta<0||i+delta>=items.length;
+   button.onclick=()=>{const [moved]=items.splice(i,1);items.splice(i+delta,0,moved);render()};actions.append(button);
+  }
+  const remove=document.createElement('button');remove.className='secondary';remove.textContent='Remove page';remove.onclick=()=>{URL.revokeObjectURL(items[i].url);items.splice(i,1);render()};actions.append(remove);page.append(actions);pages.append(page);
+ });
+ printButton.disabled=!items.length;
+ status.textContent=items.length?items.length+' page(s) ready for PDF.':'No pages selected.';
+}
+input.addEventListener('change',()=>{
+ for(const file of input.files){if(!file.type.startsWith('image/'))continue;items.push({url:URL.createObjectURL(file)});}
+ input.value='';render();
+});
+document.getElementById('clear').onclick=()=>{for(const item of items)URL.revokeObjectURL(item.url);items.length=0;render()};
+printButton.onclick=()=>window.print();
+window.addEventListener('beforeunload',()=>items.forEach(item=>URL.revokeObjectURL(item.url)));
+</script></body></html>
