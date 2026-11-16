@@ -18,7 +18,7 @@ test('server blocks direct planner/API access, uses real sessions, and persists 
  try{
   await start();
   const homepage=await fetch(base+'/');assert.equal(homepage.status,200);assert.match(await homepage.text(),/data-lottery-ticker/);
-  for(const asset of ['/lottery-ticker.js','/lottery-ticker.css'])assert.equal((await fetch(base+asset)).status,200);
+  for(const asset of ['/lottery-ticker.js','/lottery-ticker.css','/i18n.js','/i18n.css','/i18n-messages.json'])assert.equal((await fetch(base+asset)).status,200);
   assert.equal((await fetch(base+'/lottery.js')).status,404);
   assert.equal((await post('/api/lottery',{})).status,405);
   const page=await fetch(base+'/planner.html',{redirect:'manual'});assert.equal(page.status,302);assert.equal(page.headers.get('location'),'/login.html');

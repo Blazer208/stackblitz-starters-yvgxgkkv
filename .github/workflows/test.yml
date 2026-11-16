@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Install test dependencies
+        run: npm ci
       - name: Syntax checks
         run: |
           node --check index.js
@@ -22,6 +24,7 @@ jobs:
           node --check stop-policy.js
           node --check lottery.js
           node --check lottery-ticker.js
+          node --check i18n.js
       - name: Automated regression tests
         run: npm test
       - name: Production anonymous HTTP smoke tests
