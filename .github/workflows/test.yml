@@ -20,6 +20,8 @@ jobs:
           node --check automatic-stop-engine.js
           node --check stop-directory.js
           node --check stop-policy.js
+          node --check lottery.js
+          node --check lottery-ticker.js
       - name: Automated regression tests
         run: npm test
       - name: Production anonymous HTTP smoke tests
@@ -35,3 +37,4 @@ jobs:
           test "$planner" = '302'
           api="$(curl --retry 2 --max-time 20 -sS -o /dev/null -w '%{http_code}' "$base/api/truck-route")"
           test "$api" = '401'
+

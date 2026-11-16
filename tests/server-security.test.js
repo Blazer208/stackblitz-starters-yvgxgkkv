@@ -17,6 +17,10 @@ test('server blocks direct planner/API access, uses real sessions, and persists 
  const post=(url,data,cookie='',origin=base)=>fetch(base+url,{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,Cookie:cookie},body:JSON.stringify(data),redirect:'manual'});
  try{
   await start();
+  const homepage=await fetch(base+'/');assert.equal(homepage.status,200);assert.match(await homepage.text(),/data-lottery-ticker/);
+  for(const asset of ['/lottery-ticker.js','/lottery-ticker.css'])assert.equal((await fetch(base+asset)).status,200);
+  assert.equal((await fetch(base+'/lottery.js')).status,404);
+  assert.equal((await post('/api/lottery',{})).status,405);
   const page=await fetch(base+'/planner.html',{redirect:'manual'});assert.equal(page.status,302);assert.equal(page.headers.get('location'),'/login.html');
   assert.equal((await fetch(base+'/signed-bol.html',{redirect:'manual'})).status,302);
   const freightRedirect=await fetch(base+'/freight-loads.html',{redirect:'manual'});assert.equal(freightRedirect.status,302);assert.equal(freightRedirect.headers.get('location'),'/login.html');
@@ -27,7 +31,7 @@ test('server blocks direct planner/API access, uses real sessions, and persists 
   const signup=await post('/api/auth/signup',{name:'Integration Tester',email:'integration@example.com',password:'A unique integration password 90247',invite:setup});assert.equal(signup.status,201);
   const cookie=signup.headers.get('set-cookie').split(';')[0];
   const authorized=await fetch(base+'/planner.html',{headers:{Cookie:cookie}});assert.equal(authorized.status,200);
-  const plannerHtml=await authorized.text();assert.match(plannerHtml,/Dispatcher Trip Planner/);
+  const plannerHtml=await authorized.text();assert.match(plannerHtml,/Dispatcher Trip Planner/);assert.match(plannerHtml,/data-lottery-ticker/);
   const freightLink=plannerHtml.match(/<a\b[^>]*href="([^"]*freight-loads\.html)"[^>]*>[\s\S]*?Find Freight Loads<\/a>/);assert.ok(freightLink,'dashboard links to freight search');
   const freightPage=await fetch(new URL(freightLink[1],base),{headers:{Cookie:cookie}});assert.equal(freightPage.status,200);assert.match(freightPage.headers.get('content-type'),/text\/html/);
   const freightHtml=await freightPage.text();assert.match(freightHtml,/<title>Find Freight Loads \| Dispatch Pro<\/title>/);
@@ -49,3 +53,4 @@ test('server blocks direct planner/API access, uses real sessions, and persists 
   assert.equal((await fetch(base+'/planner.html',{headers:{Cookie:cookie},redirect:'manual'})).status,302);
  }finally{if(child&&child.exitCode===null)await stop();fs.rmSync(dir,{recursive:true,force:true});}
 });
+

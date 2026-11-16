@@ -4,6 +4,7 @@ const path = require('path');
 const {normalizeMatches,brandOf,allowedBrand}=require('./stop-policy');
 const stopDirectory=require('./stop-directory');
 const automaticStopEngine=require('./automatic-stop-engine');
+const lotteryService=require('./lottery').createLotteryService();
 const {createAuth}=require('./auth');
 const auth=createAuth({dbPath:process.env.AUTH_DB_PATH||'/data/accounts.sqlite',origin:process.env.APP_ORIGIN,setupHash:process.env.OWNER_SETUP_TOKEN_HASH,setupExpires:process.env.OWNER_SETUP_EXPIRES?Number(process.env.OWNER_SETUP_EXPIRES):Date.now()+86400000});
 
@@ -121,7 +122,7 @@ async function truckRoute(req,res){
   if(routeCache.size>=100)routeCache.delete(routeCache.keys().next().value);routeCache.set(key,result);return json(res,200,result);
  }catch(e){console.error('Road estimate failed',e.message);return json(res,502,{error:'Planning road network unavailable; try again'});}
 }
-const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js','/historical-awareness.html']);
+const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js','/historical-awareness.html','/lottery-ticker.js','/lottery-ticker.css']);
 const protectedFiles=new Set(['/freight-loads.html','/planner.html','/route-import.html','/signed-bol.html','/pilot-flyingj-directory.html','/ta-petro-directory.html','/loves-directory.html','/Route_Stride_Demo.html','/otr-fitness.html']);
 const securityHeaders={
  'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
@@ -133,6 +134,11 @@ const server = http.createServer(async (req, res) => {
   for(const [key,value]of Object.entries(securityHeaders))res.setHeader(key,value);
   if(req.url?.startsWith('/api/auth/')||req.url?.startsWith('/login')||req.url?.startsWith('/signup'))res.setHeader('Cache-Control','no-store');
   let urlPath;try{urlPath=decodeURIComponent((req.url||'/').split('?')[0]);}catch(e){return json(res,400,{error:'Invalid URL'});}
+  if(urlPath==='/api/lottery'){
+    if(req.method!=='GET'){res.setHeader('Allow','GET');return json(res,405,{error:'Use GET'});}
+    try{return json(res,200,await lotteryService.getResults());}
+    catch(e){return json(res,503,{error:'Lottery updates temporarily unavailable'});}
+  }
   try{if(await auth.handle(req,res,urlPath))return;}catch(e){return json(res,503,{error:'Account service unavailable'});}
   if(urlPath==='/api/truck-route'||urlPath==='/api/truck-stops'||urlPath==='/api/osm-truck-stops'||urlPath==='/api/automatic-stop-candidates'){
     const user=auth.userFor(req);if(!user)return json(res,401,{error:'Sign in required'});
@@ -226,4 +232,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, '0.0.0.0', () => {
   console.log(`Route Stride listening on port ${port}`);
 });
+
 
