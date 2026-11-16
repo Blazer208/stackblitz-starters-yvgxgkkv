@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><link rel="stylesheet" href="/i18n.css"><script src="/i18n.js" defer></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dispatch Pro — Scan Dispatch Route</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#0a1220;color:#f4f7fb;font:16px system-ui,Arial}.wrap{max-width:900px;margin:auto;padding:20px}.card{border:1px solid #30445d;border-radius:15px;background:#111c2e;padding:18px;margin:18px 0}label{display:block;margin:12px 0 6px}input,textarea{width:100%;border-radius:9px;padding:12px;background:#091526;color:white;border:1px solid #385170}textarea{min-height:140px}button,.button{display:inline-block;margin:7px 7px 7px 0;border:0;border-radius:9px;padding:12px;background:#3b82f6;color:white;font-weight:700;text-decoration:none;cursor:pointer}button:disabled{opacity:.5}.secondary{background:#263e59}small,.muted{color:#afc1d8}.warn{color:#fbd38d} .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:620px){.grid{grid-template-columns:1fr}}</style></head>
@@ -259,7 +259,7 @@ $("scanLoad").onclick=async()=>{
   }
   $("loadRaw").value=pages.join("\n");
   parseLoadCard();
-  $("loadStatus").textContent="Read "+files.length+" page"+(files.length===1?"":"s")+". "+$("loadStatus").textContent;
+  $("loadStatus").textContent="Read "+files.length+(files.length===1?" page":" pages")+". "+(window.DispatchI18n?.sourceText($("loadStatus"))||$("loadStatus").textContent);
  }
  catch(e){$("loadStatus").textContent="Could not read load card: "+e.message+" Paste its text below or enter fields manually.";}
  finally{$("scanLoad").disabled=false;$("scan").disabled=false;}
@@ -280,7 +280,7 @@ $("scan").onclick=async()=>{
   }
   $("raw").value=pages.join("\n");
   parseRoute();
-  $("status").textContent="Read "+files.length+" page"+(files.length===1?"":"s")+". "+$("status").textContent;
+  $("status").textContent="Read "+files.length+(files.length===1?" page":" pages")+". "+(window.DispatchI18n?.sourceText($("status"))||$("status").textContent);
  }
  catch(e){$("status").textContent="Could not read this report: "+e.message+" You can paste text into the review box.";}
  finally{$("scan").disabled=false;$("scanLoad").disabled=false;}

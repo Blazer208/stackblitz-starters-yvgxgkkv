@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head>
+<head><link rel="stylesheet" href="/i18n.css"><script src="/i18n.js" defer></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Route Stride — Dispatcher Trip Planner</title>
@@ -182,6 +182,8 @@ let lastRoute=null,lastOrigin=null,lastDest=null,lastPlanStops=[];
 
 function val(id){return document.getElementById(id).value.trim()}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+// Dates are view-only; the ISO trip values remain untouched when languages change.
+function dateMarkup(value,options={dateStyle:'medium',timeStyle:'short'}){const date=new Date(value);if(!Number.isFinite(date.getTime()))return 'Not entered';return '<time datetime="'+esc(date.toISOString())+'" data-local-date="'+esc(JSON.stringify(options))+'">'+esc(new Intl.DateTimeFormat(window.DispatchI18n?.locale()||'en-US',options).format(date))+'</time>';}
 function googleUrl(lat,lng,label){return lat!=null?`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`}
 function appleUrl(lat,lng,label){return lat!=null?`https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`:`https://maps.apple.com/?daddr=${encodeURIComponent(label)}&dirflg=d`}
 function qrUrl(url){return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`}
@@ -225,7 +227,7 @@ function appleWholeTripUrl(stops){
 }
 function appleStopUrl(stop){return 'https://maps.apple.com/?daddr='+encodeURIComponent(navValue(stop))+'&dirflg=d';}
 function appleLegLinks(stops){
- return stops.slice(1).map((s,i)=>'<a class="btn secondary" target="_blank" rel="noopener" href="'+esc(appleStopUrl(s))+'">Apple Maps — Stop '+(i+2)+': '+esc(s.name||s.address)+'</a>').join('');
+ return stops.slice(1).map((s,i)=>'<a class="btn secondary" target="_blank" rel="noopener" href="'+esc(appleStopUrl(s))+'">Apple Maps — Stop '+(i+2)+': '+'<span translate="no">'+esc(s.name||s.address)+'</span>'+'</a>').join('');
 }
 
 
@@ -252,7 +254,7 @@ function refreshStopVerification(){
  if(navigation)navigation.innerHTML=lastPlanStops.length>=2?renderNavigationLinks():'';
  return;
  const all=lastPlanStops.length>0&&confirmedStops.size===lastPlanStops.length;
- const cards=lastPlanStops.map((s,i)=>`<div class="stop"><div class="stopTitle">${i+1}. ${esc(s.name)}</div><div class="addr">${esc(s.address)}</div><div class="meta">Truck entrance: ${esc(s.truckEntrance||'Not separately verified')} • Navigation: ${s.lat!=null?esc(s.lat+', '+s.lng):'Street address only'}</div><div class="actions no-print"><button type="button" class="btn secondary" onclick="changeVerifiedStop(${i})">Correct name / address / truck entrance</button><label style="display:flex;align-items:center;gap:7px"><input type="checkbox" style="width:auto" ${confirmedStops.has(i)?'checked':''} onchange="checkVerifiedStop(${i},this.checked)">I verified this stop and truck access</label></div></div>`).join('');
+ const cards=lastPlanStops.map((s,i)=>`<div class="stop"><div class="stopTitle">${i+1}. <span translate="no">${esc(s.name)}</span></div><div class="addr">${esc(s.address)}</div><div class="meta">Truck entrance: ${esc(s.truckEntrance||'Not separately verified')} • Navigation: ${s.lat!=null?esc(s.lat+', '+s.lng):'Street address only'}</div><div class="actions no-print"><button type="button" class="btn secondary" onclick="changeVerifiedStop(${i})">Correct name / address / truck entrance</button><label style="display:flex;align-items:center;gap:7px"><input type="checkbox" style="width:auto" ${confirmedStops.has(i)?'checked':''} onchange="checkVerifiedStop(${i},this.checked)">I verified this stop and truck access</label></div></div>`).join('');
  host.innerHTML=`<div class="day" style="border-color:var(--amber)"><h3>VERIFY STOPS BEFORE NAVIGATION</h3><div class="notice small">Check the facility's official address and actual truck entrance against dispatch/operator records. A nearby business label is not proof. Edited stops lose their old GPS pin to prevent incorrect handoffs.</div><div class="meta">${confirmedStops.size} of ${lastPlanStops.length} manually confirmed</div>${cards}<div class="actions no-print"><button class="btn good" type="button" ${all?'':'disabled'} onclick="unlockNavigation()">Generate QR codes and navigation buttons</button></div></div>`;
  document.getElementById('verifiedNavigation').innerHTML='';
 }
@@ -267,8 +269,8 @@ function renderNavigationLinks(){
  const hammerSegments=hammerRouteSegments(lastPlanStops);
  const hammerActions=hammerSegments.map((s,i)=>`<a class="btn secondary" target="_blank" rel="noopener" href="${esc(s.url)}">Open Hammer — Leg ${i+1}</a>`).join('');
  const hammerQrs=hammerSegments.map((s,i)=>`<div class="qr"><img alt="Hammer leg ${i+1} QR code" src="${qrUrl(s.url)}"><b>Hammer Leg ${i+1} QR</b></div>`).join('');
- const hammerDetails=hammerSegments.map((s,i)=>`<div class="meta">Leg ${i+1}: ${esc(s.from)} → ${esc(s.to)} (${s.count} locations)</div>`).join('');
- return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip ${esc(val("trip")||"UNNUMBERED")}</span></div>
+ const hammerDetails=hammerSegments.map((s,i)=>`<div class="meta">Leg ${i+1}: <span translate="no">${esc(s.from)} → ${esc(s.to)}</span> (${s.count} locations)</div>`).join('');
+ return `<div class="day" style="border-color:#3b82f6"><div class="dayhead"><div><h3>WHOLE-TRIP NAVIGATION</h3><div class="muted small">Yard → pickup → all planned break/rest stops → delivery</div></div><span class="badge">Trip <span translate="no">${esc(val("trip")||"UNNUMBERED")}</span></span></div>
  <div class="actions no-print"><a class="btn primary" target="_blank" rel="noopener" href="${gu}">Open Whole Trip in Google Maps</a><a class="btn secondary" target="_blank" rel="noopener" href="${au}">Open Delivery in Apple Maps</a>${appleLegLinks(lastPlanStops)}<a class="btn secondary" href="${truckerPathUrl(lastPlanStops)}">Open in Trucker Path</a>${hammerActions}<button class="btn good" type="button" onclick="downloadRouteGPX()">Download Whole-Trip Garmin GPX</button></div>
  <div class="qrrow"><div class="qr"><img src="${qrUrl(gu)}"><b>Whole Trip — Google QR</b></div><div class="qr"><img src="${qrUrl(au)}"><b>Apple Delivery QR</b></div><div class="qr"><img src="${qrUrl(truckerPathUrl(lastPlanStops))}"><b>Trucker Path QR</b></div>${hammerQrs}</div>
  <div class="notice small"><b>Hammer:</b> Each linked leg supports up to five waypoints. Open legs in numbered order. This plan has ${lastPlanStops.length} locations, including addresses without GPS coordinates. ${hammerDetails} Verify all locations and your truck settings in Hammer before starting. <b>Apple Maps:</b> Apple Maps web links cannot reliably import all intermediate stops. Use the individual Stop links in order; they are not one multi-stop route. Confirm destination name, entrance, and truck restrictions in your truck navigation app.</div></div>`;
@@ -346,7 +348,7 @@ function downloadRouteGPX(){
 }
 function stopCard(s,title,note){
  const target=s.lat!=null&&s.lng!=null ? `Navigation target: ${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}` : "Navigation target: address-based Google/Apple handoff; exact Garmin coordinate not resolved by the public geocoder.";
- return `<div class="stop"><div class="stopTitle">${esc(title)} — ${esc(s.name)}</div><div class="addr">${esc(s.address)}</div><div class="meta">${note}<br>${target}</div>${navBlock(s)}</div>`;
+ return `<div class="stop"><div class="stopTitle">${esc(title)} — <span translate="no">${esc(s.name)}</span></div><div class="addr">${esc(s.address)}</div><div class="meta">${note}<br>${target}</div>${navBlock(s)}</div>`;
 }
 
 const LEG_POLICY=STOP_POLICY;
@@ -595,19 +597,19 @@ async function buildGenericPlan(){
    const start=clock?new Date(clock):null;
    const cards=day.entries.map(s=>{
      if(clock)clock=new Date(clock.getTime()+s.driveHours*3600000);
-     const arrival=clock?clock.toLocaleString('en-US'):'';
+     const arrival=clock?clock.toLocaleString(window.DispatchI18n?.locale()||'en-US'):'';
      const label={break:'30-MIN BREAK / FUEL',rest:'FINAL REST',delivery:'DELIVERY',pickup:'PICKUP'}[s.kind];
-     const note=s.miles.toFixed(1)+' estimated road mi • '+s.driveHours.toFixed(1)+' drive hr'+(arrival?' • Estimated arrival '+esc(arrival):'')+(s.miles<200?' • Short leg for delivery / available clock':'');
+     const note=s.miles.toFixed(1)+' estimated road mi • '+s.driveHours.toFixed(1)+' drive hr'+(arrival?' • Estimated arrival '+dateMarkup(clock):'')+(s.miles<200?' • Short leg for delivery / available clock':'');
      const card=stopCard(s,label,note);
      if(clock&&s.kind==='break')clock=new Date(clock.getTime()+1800000);
      return card;
    }).join('');
-   dayHtml+=`<div class="day"><h3>DAY ${i+1}${start?' — '+esc(start.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})):''}</h3><div class="meta">${day.miles.toFixed(1)} mi • ${day.hours.toFixed(1)} drive hr${start?' • Depart '+esc(start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})):''}</div>${cards}</div>`;
+   dayHtml+=`<div class="day"><h3>DAY ${i+1}${start?' — '+dateMarkup(start,{weekday:'long',month:'short',day:'numeric'}):''}</h3><div class="meta">${day.miles.toFixed(1)} mi • ${day.hours.toFixed(1)} drive hr${start?' • Depart '+dateMarkup(start,{hour:'numeric',minute:'2-digit'}):''}</div>${cards}</div>`;
    if(clock&&i<days.length-1)clock=new Date(clock.getTime()+10*3600000);
  });
  const late=clock&&appointment&&clock>new Date(appointment);
  status.innerHTML='<span class="'+(late?'warn':'ok')+'"><b>'+ (late?'APPOINTMENT AT RISK — adjust the departure or daily schedule.':'PLAN BUILT — truck road restrictions are not checked.')+'</b></span>';
- gen.innerHTML=`<h2>Professional Driver Trip Plan</h2><div class="meta">Trip ${esc(trip)} • ${esc(val('driver'))} • Truck ${esc(val('truck'))} • Trailer ${esc(val('trailer'))}</div>${adjustmentNotice}<div class="summary"><div class="metric">Estimated road distance<b>${totalMiles.toFixed(1)} mi</b></div><div class="metric">Drive estimate<b>${totalHours.toFixed(1)} hr</b></div><div class="metric">Drive days<b>${days.length}</b></div><div class="metric">First break target<b>${'~250 mi'}</b></div></div><div class="notice small"><b>Strategy:</b> Break/fuel and overnight legs target 200–300 estimated road miles, aiming near 250. ${shortTripRequiresOneBreak?'Trips under 650 estimated road miles include one scheduled 30-minute break/fuel stop; an overnight may still be planned when the available drive clock requires it.':'The first break target is about 250 estimated road miles.'} Short legs may be needed for the final delivery or available driving clock.<br><b>Fuel network:</b> ${esc(val('network'))}<br><b>Company highways:</b> ${esc(val('notes'))}<br><b>Schedule:</b> Estimates include planned driving, 30-minute breaks and 10-hour overnight rests. Add loading, inspections, fuel service, traffic and other duty time; confirm appointment timezones and actual ELD hours. Highway notes do not force the routing corridor. Confirm it against dispatch. Parking availability is not guaranteed.${late?'<br><b>Delivery estimate is later than the appointment.</b>':''}</div>${wholeTripNavBlock()}${dayHtml}`;
+ gen.innerHTML=`<h2>Professional Driver Trip Plan</h2><div class="meta">Trip <span translate="no">${esc(trip)}</span> • <span translate="no">${esc(val('driver'))}</span> • Truck <span translate="no">${esc(val('truck'))}</span> • Trailer <span translate="no">${esc(val('trailer'))}</span></div>${adjustmentNotice}<div class="summary"><div class="metric">Estimated road distance<b>${totalMiles.toFixed(1)} mi</b></div><div class="metric">Drive estimate<b>${totalHours.toFixed(1)} hr</b></div><div class="metric">Drive days<b>${days.length}</b></div><div class="metric">First break target<b>${'~250 mi'}</b></div></div><div class="notice small"><b>Strategy:</b> Break/fuel and overnight legs target 200–300 estimated road miles, aiming near 250. ${shortTripRequiresOneBreak?'Trips under 650 estimated road miles include one scheduled 30-minute break/fuel stop; an overnight may still be planned when the available drive clock requires it.':'The first break target is about 250 estimated road miles.'} Short legs may be needed for the final delivery or available driving clock.<br><b>Fuel network:</b> ${esc(val('network'))}<br><b>Company highways:</b> <span translate="no">${esc(val('notes'))}</span><br><b>Schedule:</b> Estimates include planned driving, 30-minute breaks and 10-hour overnight rests. Add loading, inspections, fuel service, traffic and other duty time; confirm appointment timezones and actual ELD hours. Highway notes do not force the routing corridor. Confirm it against dispatch. Parking availability is not guaranteed.${late?'<br><b>Delivery estimate is later than the appointment.</b>':''}</div>${wholeTripNavBlock()}${dayHtml}`;
  refreshStopVerification();document.getElementById('plan').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -625,7 +627,7 @@ const trip127532Stops=[
 async function loadSavedMilwaukeeTrip(){
  const btn=document.getElementById('savedTripBtn');
  if(btn.disabled)return;
- btn.disabled=true;const prior=btn.textContent;btn.textContent='Loading saved trip and all exports…';
+ btn.disabled=true;const prior=window.DispatchI18n?.sourceText(btn)||btn.textContent;btn.textContent='Loading saved trip and all exports…';
  lastPlanStops=[];lastRoute=null;document.getElementById('generated').innerHTML='';
  try{await build127532();}
  catch(e){lastPlanStops=[];lastRoute=null;document.getElementById('generated').innerHTML='';document.getElementById('status').innerHTML='<span class="error"><b>Saved trip could not load:</b> '+esc(e.message)+'</span>';}
@@ -654,9 +656,9 @@ async function build127532(){
  const mon=stopCard(stops[7],"DELIVERY","CANDYCO • Monday, Oct 12 at 8:00 AM Mountain.");
  const mapMiles=lastRoute&&Number.isFinite(lastRoute.distance)?Math.round(lastRoute.distance/1609.344).toLocaleString()+" mi":"Address handoff ready";
  status.innerHTML='<span class="ok"><b>TRIP 127532 LOADED.</b> This preset uses the Professional Driver Trip Plan stop sequence.</span>';
- gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip 127532 • ${esc(val("driver"))} • Trailer ${esc(val("trailer"))}</div></div><div class="version">SAVED TRIP — 127532</div></div>
+ gen.innerHTML=`<div class="dayhead"><div><h2>Professional Driver Trip Plan</h2><div class="muted small">Trip 127532 • <span translate="no">${esc(val("driver"))}</span> • Trailer <span translate="no">${esc(val("trailer"))}</span></div></div><div class="version">SAVED TRIP — 127532</div></div>
  <div class="summary"><div class="metric">Pickup<b>Fri 1:30 PM CT</b></div><div class="metric">Load<b>41,127 lb / 44 pallets</b></div><div class="metric">Route check<b>${mapMiles}</b></div><div class="metric">Delivery<b>Mon 8:00 AM MT</b></div></div>
- <div class="notice small"><b>Start / Yard:</b> ${esc(yardStop.address)}<br><b>Shipper:</b> PHOENIX, ${esc(stops[0].address)}<br><b>Consignee:</b> CANDYCO, 2224 W 500 N, Springville, UT 84663<br><b>Company corridor:</b> ${esc(val("notes"))}<br><b>Plan rule:</b> two stops per driving day — one 30-minute break/fuel stop, then final rest/staging.</div>
+ <div class="notice small"><b>Start / Yard:</b> <span translate="no">${esc(yardStop.address)}</span><br><b>Shipper:</b> PHOENIX, <span translate="no">${esc(stops[0].address)}</span><br><b>Consignee:</b> CANDYCO, 2224 W 500 N, Springville, UT 84663<br><b>Company corridor:</b> <span translate="no">${esc(val("notes"))}</span><br><b>Plan rule:</b> two stops per driving day — one 30-minute break/fuel stop, then final rest/staging.</div>
  ${wholeTripNavBlock()}
  <div class="day"><div class="dayhead"><div><h3>DAY 1 — FRIDAY, OCT 9</h3><div class="muted small">Yard → Milwaukee pickup → Cedar Rapids → Altoona</div></div><span class="badge">Pickup 1:30 PM CT</span></div>${fri}</div>
  <div class="day"><div class="dayhead"><div><h3>DAY 2 — SATURDAY, OCT 10</h3><div class="muted small">Altoona → North Platte → Sidney</div></div><span class="badge">Run day</span></div>${sat}</div>
@@ -695,13 +697,13 @@ function printProfessionalPlan(){
  if(!lastPlanStops.length||!document.getElementById('generated').textContent.trim()){
   alert('Generate a trip plan before printing.');return;
  }
- const stops=lastPlanStops, preliminary=/PRELIMINARY PLAN ONLY|Preliminary Driver Trip Plan/.test(document.getElementById('plan').textContent);
- const date=s=>s?new Date(s).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}):'Not entered';
+ const stops=lastPlanStops, preliminary=/PRELIMINARY PLAN ONLY|Preliminary Driver Trip Plan/.test(window.DispatchI18n?.sourceText(document.getElementById('plan'))||document.getElementById('plan').textContent);
+ const date=s=>s?new Date(s).toLocaleString(window.DispatchI18n?.locale()||'en-US',{dateStyle:'medium',timeStyle:'short'}):'Not entered';
  const qr=(url,label)=>'<div class="prCode"><img src="'+esc(qrUrl(url))+'" alt="'+esc(label)+' QR"><div><b>'+esc(label)+'</b></div></div>';
- const fmt=(p,i)=>'<div class="prStop"><b>'+(i+1)+'</b><div><strong>'+esc(p.name||'Stop')+'</strong><small>'+esc(p.address||'Address not verified')+'</small><small>'+esc(p.kind||'Planned waypoint')+(p.truckEntrance?' • Entrance: '+esc(p.truckEntrance):'')+'</small></div><img class="prQr" src="'+esc(qrUrl(googleUrl(p.lat,p.lng,p.address)))+'" alt="Directions QR"></div>';
+ const fmt=(p,i)=>'<div class="prStop"><b>'+(i+1)+'</b><div><strong translate="no">'+esc(p.name||'Stop')+'</strong><small translate="no">'+esc(p.address||'Address not verified')+'</small><small>'+esc(p.kind||'Planned waypoint')+(p.truckEntrance?' • Entrance: '+'<span translate="no">'+esc(p.truckEntrance)+'</span>':'')+'</small></div><img class="prQr" src="'+esc(qrUrl(googleUrl(p.lat,p.lng,p.address)))+'" alt="Directions QR"></div>';
  const groups=[];let current=[];
  stops.forEach((p,i)=>{current.push({p,i});if(p.kind==='rest'||p.kind==='delivery'||i===stops.length-1){groups.push(current);current=[];}});
- const days=groups.map((arr,i)=>'<section class="prDay"><h3>DAY '+(i+1)+'  |  '+esc(arr[0].p.name||'Departure')+' → '+esc(arr[arr.length-1].p.name||'Destination')+'</h3>'+arr.map(x=>fmt(x.p,x.i)).join('')+'</section>').join('');
+ const days=groups.map((arr,i)=>'<section class="prDay"><h3>DAY '+(i+1)+'  |  '+'<span translate="no">'+esc(arr[0].p.name||'Departure')+' → '+esc(arr[arr.length-1].p.name||'Destination')+'</span>'+'</h3>'+arr.map(x=>fmt(x.p,x.i)).join('')+'</section>').join('');
  const coords=stops.map((p,i)=>({i,lat:Number(p.lat),lng:Number(p.lng),name:p.name})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&p.lat!==0&&p.lng!==0);
  let diagram='<div class="prWarning">Some locations lack coordinates. Open the map link to review all stops.</div>';
  if(coords.length>=2){
@@ -713,13 +715,14 @@ function printProfessionalPlan(){
  const osm=bounds?'https://www.openstreetmap.org/export/embed.html?bbox='+encodeURIComponent([bounds.west-0.3,bounds.south-0.3,bounds.east+0.3,bounds.north+0.3].join(','))+'&layer=mapnik':'';
  const map='<div class="prMap"><div class="prMapTitle">GEOGRAPHIC TRIP OVERVIEW</div>'+(osm?'<div id="prLeafletMap" class="prLiveMap" role="img" aria-label="Geographic map with numbered trip stops"></div>':'')+'<div class="prPrintMap">'+diagram+'</div><div class="prMapCaption">Map shows the geographic trip area, not a plotted or validated truck-safe road route. The numbered schematic is used for print; check stop locations and road restrictions separately.</div><a href="'+esc(googleWholeTripUrl(stops))+'" target="_blank" rel="noopener">Open stops in Google Maps (verify truck restrictions)</a></div>';
  const metrics=document.querySelectorAll('#generated .summary .metric');
- const metric=(i)=>metrics[i]?metrics[i].textContent.trim():'Not available';
+ const metric=(i)=>{const el=metrics[i]?.querySelector?.('b')||metrics[i];return el?(window.DispatchI18n?.sourceText(el)||el.textContent.trim()):'Not available';};
  const weight=val('weight')||'Not entered';
- const report='<div class="prWarning"><b>PLANNING ESTIMATE — NOT A VERIFIED TRUCK-SAFE ROUTE.</b> Road mileage uses a general driving network. It does not check bridge height, axle/weight limits, commercial vehicle restrictions, or truck entrances. Do not navigate a commercial truck solely from this plan or its Google/Apple links.</div>'+'<div class="prHead"><div><h1>◢ ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN</div></div><div><b>Trip '+esc(val('trip')||'UNNUMBERED')+'</b><div>'+esc(stops[0].name||'Origin')+' → '+esc(stops[stops.length-1].name||'Delivery')+'</div><div>Depart: '+esc(date(val('departureTime')))+'</div><div>Deliver: '+esc(date(val('deliveryTime')))+'</div></div></div>'+
- '<div class="prStats"><div class="prStat">Estimated Road Miles<b>'+esc(metric(0))+'</b></div><div class="prStat">Drive Estimate<b>'+esc(metric(1))+'</b></div><div class="prStat">Load Weight<b>'+esc(weight)+'</b></div><div class="prStat">Trip Days<b>'+esc(metric(2))+'</b></div><div class="prStat">Driver / Truck<b>'+esc(val('driver')||'Unassigned')+' / '+esc(val('truck')||'—')+'</b></div></div>'+
- '<div class="prLayout"><div>'+days+'</div><aside class="prSide">'+map+'<h3>Navigation Exports</h3><div class="prCodes">'+qr(googleWholeTripUrl(stops),'Google Maps')+qr(appleWholeTripUrl(stops),'Apple Delivery')+qr(truckerPathUrl(stops),'Trucker Path')+hammerRouteSegments(stops).map((leg,i)=>qr(leg.url,'Hammer Leg '+(i+1))).join('')+'</div><h3>Trip Notes</h3><div><b>Fuel network:</b> '+esc(val('network'))+'</div><div><b>Highways:</b> '+esc(val('notes')||'Verify with dispatch')+'</div><div><b>Truck / Trailer:</b> '+esc(val('truck')||'—')+' / '+esc(val('trailer')||'—')+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY — stops not assigned. NOT DISPATCH READY.':'Stop positions, parking, HOS and truck entrances require driver/dispatch verification.')+'</div><h3>Garmin GPX</h3><div>Use the Download Whole-Trip Garmin GPX button in the planner or print preview to save the route waypoint file. GPX is a separate file, not a QR code.</div><h3>Truck Safety</h3><div>Google/Apple Maps are not truck-safe routing tools. Follow posted restrictions and verified commercial truck navigation.</div></aside></div>';
+ const report='<div class="prWarning"><b>PLANNING ESTIMATE — NOT A VERIFIED TRUCK-SAFE ROUTE.</b> Road mileage uses a general driving network. It does not check bridge height, axle/weight limits, commercial vehicle restrictions, or truck entrances. Do not navigate a commercial truck solely from this plan or its Google/Apple links.</div>'+'<div class="prHead"><div><h1>◢ ROUTE STRIDE</h1><div class="prSub">PROFESSIONAL DRIVER TRIP PLAN</div></div><div><b>Trip '+'<span translate="no">'+esc(val('trip')||'UNNUMBERED')+'</span>'+'</b><div>'+'<span translate="no">'+esc(stops[0].name||'Origin')+' → '+esc(stops[stops.length-1].name||'Delivery')+'</span>'+'</div><div>Depart: '+(val('departureTime')?dateMarkup(val('departureTime')):'Not entered')+'</div><div>Deliver: '+(val('deliveryTime')?dateMarkup(val('deliveryTime')):'Not entered')+'</div></div></div>'+
+ '<div class="prStats"><div class="prStat">Estimated Road Miles<b>'+esc(metric(0))+'</b></div><div class="prStat">Drive Estimate<b>'+esc(metric(1))+'</b></div><div class="prStat">Load Weight<b>'+'<span translate="no">'+esc(weight)+'</span>'+'</b></div><div class="prStat">Trip Days<b>'+esc(metric(2))+'</b></div><div class="prStat">Driver / Truck<b>'+'<span translate="no">'+esc(val('driver')||'Unassigned')+' / '+esc(val('truck')||'—')+'</span>'+'</b></div></div>'+
+ '<div class="prLayout"><div>'+days+'</div><aside class="prSide">'+map+'<h3>Navigation Exports</h3><div class="prCodes">'+qr(googleWholeTripUrl(stops),'Google Maps')+qr(appleWholeTripUrl(stops),'Apple Delivery')+qr(truckerPathUrl(stops),'Trucker Path')+hammerRouteSegments(stops).map((leg,i)=>qr(leg.url,'Hammer Leg '+(i+1))).join('')+'</div><h3>Trip Notes</h3><div><b>Fuel network:</b> '+esc(val('network'))+'</div><div><b>Highways:</b> '+'<span translate="no">'+esc(val('notes')||'Verify with dispatch')+'</span>'+'</div><div><b>Truck / Trailer:</b> '+'<span translate="no">'+esc(val('truck')||'—')+' / '+esc(val('trailer')||'—')+'</span>'+'</div><div class="prWarning">'+(preliminary?'PRELIMINARY — stops not assigned. NOT DISPATCH READY.':'Stop positions, parking, HOS and truck entrances require driver/dispatch verification.')+'</div><h3>Garmin GPX</h3><div>Use the Download Whole-Trip Garmin GPX button in the planner or print preview to save the route waypoint file. GPX is a separate file, not a QR code.</div><h3>Truck Safety</h3><div>Google/Apple Maps are not truck-safe routing tools. Follow posted restrictions and verified commercial truck navigation.</div></aside></div>';
  const preview=document.getElementById('printReport');
  preview.innerHTML='<div class="actions no-print" style="margin-bottom:14px"><button type="button" class="btn primary" onclick="window.print()">Print / Save as PDF</button><button type="button" class="btn good" onclick="downloadRouteGPX()">Download Garmin GPX</button><button type="button" class="btn secondary" onclick="document.getElementById(\'printReport\').classList.remove(\'previewOpen\');document.getElementById(\'printReport\').setAttribute(\'aria-hidden\',\'true\')">Close Preview</button></div><p class="no-print">On iPhone: tap Print / Save as PDF, then use the Share button in the print preview to save to Files.</p>'+report;
+ window.DispatchI18n?.apply(preview);
  preview.classList.add('previewOpen');
  preview.setAttribute('aria-hidden','false');
  try{renderTripMapPins(coords)}catch(e){console.warn('Preview map unavailable:',e)}
@@ -742,7 +745,7 @@ async function buildPlan(){
   const disallowed=lastPlanStops.filter(s=>s.kind==='break'||s.kind==='rest').filter(s=>!allowedBrand(brandOf(s.name),s.kind,s.automaticNetworkFallback?'automatic-fallback':activeNetwork));
   if(disallowed.length){lastPlanStops=[];lastRoute=null;document.getElementById('generated').innerHTML='';throw new Error('An automatically selected stop does not match the Route Stride stop policy. Generate the plan again.');}
   const timing=document.createElement("div");timing.className="notice small";
-  timing.textContent="Departure: "+(departure?new Date(departure).toLocaleString("en-US"):"Not entered")+" • Delivery appointment: "+(appointment?new Date(appointment).toLocaleString("en-US"):"Not entered");
+  timing.innerHTML="Departure: "+(departure?dateMarkup(departure):"Not entered")+" • Delivery appointment: "+(appointment?dateMarkup(appointment):"Not entered");
   document.getElementById("generated").prepend(timing);
  }catch(e){
   console.error('Route Stride automatic stop selection failed:',e);
@@ -793,7 +796,7 @@ async function buildPlan(){
 })();
 </script>
 <script>
-(function(){const q=new URLSearchParams(location.search);const address=q.get('pilotStop')||q.get('selectedStop');if(!address)return;const brand=q.get('selectedBrand')||'Pilot';window.routeStrideSelectedStop={name:q.get('selectedStopName')||brand+' Travel Center (listing unverified)',brand,address};const box=document.createElement('div');box.className='card';box.textContent='Selected '+window.routeStrideSelectedStop.name+' for first-break evaluation at '+address+'. Route Stride will geocode this address and truck-route check it when you generate the plan; if it does not fit the route or stop window, planning will report that. Verify the truck entrance before arrival.';document.querySelector('.form-card')?.before(box);})();
+(function(){const q=new URLSearchParams(location.search);const address=q.get('pilotStop')||q.get('selectedStop');if(!address)return;const brand=q.get('selectedBrand')||'Pilot';window.routeStrideSelectedStop={name:q.get('selectedStopName')||brand+' Travel Center (listing unverified)',brand,address};const box=document.createElement('div');box.className='card';box.innerHTML='Selected <span translate="no">'+esc(window.routeStrideSelectedStop.name)+'</span> for first-break evaluation at <span translate="no">'+esc(address)+'</span>. Route Stride will geocode this address and truck-route check it when you generate the plan; if it does not fit the route or stop window, planning will report that. Verify the truck entrance before arrival.';document.querySelector('.form-card')?.before(box);})();
 </script>
 </body></html>
 

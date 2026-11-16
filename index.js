@@ -122,7 +122,7 @@ async function truckRoute(req,res){
   if(routeCache.size>=100)routeCache.delete(routeCache.keys().next().value);routeCache.set(key,result);return json(res,200,result);
  }catch(e){console.error('Road estimate failed',e.message);return json(res,502,{error:'Planning road network unavailable; try again'});}
 }
-const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js','/historical-awareness.html','/lottery-ticker.js','/lottery-ticker.css']);
+const publicFiles=new Set(['/index.html','/login.html','/signup.html','/pricing.html','/welcome.html','/auth-ui.js','/stop-policy.js','/historical-awareness.html','/lottery-ticker.js','/lottery-ticker.css','/i18n.js','/i18n.css','/i18n-messages.json']);
 const protectedFiles=new Set(['/freight-loads.html','/planner.html','/route-import.html','/signed-bol.html','/pilot-flyingj-directory.html','/ta-petro-directory.html','/loves-directory.html','/Route_Stride_Demo.html','/otr-fitness.html']);
 const securityHeaders={
  'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
