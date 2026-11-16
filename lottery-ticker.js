@@ -16,6 +16,7 @@
     const row = el('div', compact ? 'lottery-history-row' : 'lottery-result');
     row.append(el('span', 'lottery-draw-date', date(draw.date)));
     const balls = el('span', 'lottery-balls');
+    balls.setAttribute('role', 'img');
     balls.setAttribute('aria-label', draw.numbers.join(', ') + '; ' + game.ballLabel + ' ' + draw.specialBall);
     for (const number of draw.numbers) { const ball = el('span', 'lottery-ball', number); ball.setAttribute('aria-hidden', 'true'); balls.append(ball); }
     const special = el('span', 'lottery-ball lottery-special', draw.specialBall); special.setAttribute('aria-hidden', 'true'); balls.append(special); row.append(balls);
