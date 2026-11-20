@@ -7,3 +7,12 @@ html[dir=rtl] body{text-align:start}html[dir=rtl] input,html[dir=rtl] textarea{t
 @media print{.language-controls{display:none!important}}
 
 .addr,[translate="no"]{unicode-bidi:isolate}html[dir=rtl] .addr{direction:ltr;text-align:start}html[dir=rtl] .language-controls{text-align:left}
+
+/* Restore the original complete 1536x1024 Dispatch Pro hero, including its live linked hotspots. */
+body main{display:flex;flex-direction:column}
+body main>.art{display:block;order:-1;width:100%;max-width:1536px;margin:0 auto}
+body main>.art img{display:block;width:100%;height:auto;object-fit:contain}
+body main>.translated-home{order:0;width:100%}
+.translated-home-art{display:none}
+.translated-home-hero{grid-template-columns:minmax(0,1fr)}
+@media(max-width:650px){body main>.art{width:100%}.translated-home-hero{grid-template-columns:minmax(0,1fr)}}
