@@ -14,9 +14,9 @@ async function buildPdf(){
  // Self-contained JPEG-to-PDF writer: works even when third-party scripts are blocked.
  const encoder=new TextEncoder(),parts=[],offsets=[0];let length=0;
  function add(data){const bytes=typeof data==='string'?encoder.encode(data):data;parts.push(bytes);length+=bytes.length}
- function obj(id,body){offsets[id]=length;add(id+' 0 obj\\n'+body+'\\nendobj\\n')}
- function streamObj(id,dict,bytes){offsets[id]=length;add(id+' 0 obj\\n<< '+dict+' /Length '+bytes.length+' >>\\nstream\\n');add(bytes);add('\\nendstream\\n')}
- add('%PDF-1.4\\n');
+ function obj(id,body){offsets[id]=length;add(id+' 0 obj\n'+body+'\nendobj\n')}
+ function streamObj(id,dict,bytes){offsets[id]=length;add(id+' 0 obj\n<< '+dict+' /Length '+bytes.length+' >>\nstream\n');add(bytes);add('\nendstream\n')}
+ add('%PDF-1.4\n');
  const count=selected.length;const kids=[];
  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
  for(let i=0;i<count;i++)kids.push((3+i*3)+' 0 R');
@@ -33,9 +33,9 @@ async function buildPdf(){
   streamObj(content,'',encoder.encode('q '+w+' 0 0 '+h+' 0 0 cm /Im0 Do Q'));
   streamObj(image,'/Type /XObject /Subtype /Image /Width '+w+' /Height '+h+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode',jpg);
  }
- const xref=length;add('xref\\n0 '+(3+count*3)+'\\n0000000000 65535 f \\n');
- for(let i=1;i<3+count*3;i++)add(String(offsets[i]).padStart(10,'0')+' 00000 n \\n');
- add('trailer\\n<< /Size '+(3+count*3)+' /Root 1 0 R >>\\nstartxref\\n'+xref+'\\n%%EOF');
+ const xref=length;add('xref\n0 '+(3+count*3)+'\n0000000000 65535 f \n');
+ for(let i=1;i<3+count*3;i++)add(String(offsets[i]).padStart(10,'0')+' 00000 n \n');
+ add('trailer\n<< /Size '+(3+count*3)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF');
  return new File(parts,'Scanned_Document_'+new Date().toISOString().slice(0,10)+'.pdf',{type:'application/pdf'});
 }
 async function buildWithPdfLib(){
