@@ -397,12 +397,22 @@ async function showRouteTruckStops(){
   const pickup=val('pickup'),delivery=val('delivery');
   if(!pickup||!delivery)throw Error('Enter pickup and delivery addresses first.');
   const [a,b,stops]=await Promise.all([geocode(pickup),geocode(delivery),loadRouteStrideDirectories()]);
-  const matches=stops.filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)))
+  const corridorPoints=[a,b].map(p=>({lat:Number(p.lat),lng:Number(p.lng)}));
+  const discovered=await Promise.all(['break','rest'].map(async kind=>{
+   try{
+    const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:corridorPoints,kind,network:'automatic-fallback',targetMiles:250})});
+    if(!response.ok)return [];
+    const result=await response.json();
+    return result.stops||[];
+   }catch(e){return [];}
+  }));
+  const allStops=[...stops,...discovered.flat()];
+  const matches=allStops.filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)))
    .map(p=>({...p,lat:Number(p.lat),lng:Number(p.lng)}))
    .filter(p=>corridorDistanceMiles(p,a,b)<=65)
    .sort((p,q)=>Math.hypot(p.lat-a.lat,p.lng-a.lng)-Math.hypot(q.lat-a.lat,q.lng-a.lng));
   const unique=[...new Map(matches.map(p=>[String(p.address).toLowerCase(),p])).values()];
-  host.innerHTML='<b>Listed truck stops near the pickup–delivery corridor ('+unique.length+')</b><div class="small">Directory locations within approximately 65 straight-line miles of the corridor. This is not an exhaustive list or a truck-legal route; verify access, parking, and driving hours before use.</div>'+
+  host.innerHTML='<b>Listed truck stops near the pickup–delivery corridor ('+unique.length+')</b><div class="small">Known directory and automatically discovered locations within approximately 65 straight-line miles of the corridor. This is not an exhaustive list or a truck-legal route; verify access, parking, and driving hours before use.</div>'+
    (unique.length?'<div style="max-height:440px;overflow:auto">'+unique.map(p=>'<div style="padding:8px 0;border-bottom:1px solid #64748b"><b>'+esc(p.name)+'</b> — '+esc(p.address)+' <a href="'+esc(googleUrl(p.lat,p.lng,p.address))+'" target="_blank" rel="noopener">Google Maps</a> · <a href="'+esc(appleUrl(p.lat,p.lng,p.address))+'" target="_blank" rel="noopener">Apple Maps</a></div>').join('')+'</div>':'No coordinate-verified directory stops were found near this straight-line corridor. This does not mean no truck stops exist.');
  }catch(error){host.textContent='Could not display truck stops: '+error.message;}
  finally{if(button)button.disabled=false;}
