@@ -429,10 +429,10 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
    .map(s=>({...s,approxMiles:Math.hypot((s.lat-origin.lat)*69,(s.lng-origin.lng)*69*Math.cos(origin.lat*Math.PI/180))}))
    .filter(s=>s.approxMiles<=maxMiles*1.25+20&&s.approxMiles>=Math.max(0,minMiles*.55-20))
    .sort((a,b)=>Math.abs(a.approxMiles-targetMiles)-Math.abs(b.approxMiles-targetMiles));
-  for(const stop of nearCandidates.slice(0,wideRange?24:12)){
+  for(const stop of nearCandidates.slice(0,wideRange?48:24)){
    let route;try{route=await routeThrough([origin,stop]);}catch(e){if(e.status===429)throw e;continue;}
    const miles=route.distance/1609.344,hours=legDriveHours(route,speed);
-   if(!(miles>=Math.max(minMiles,kind==='rest'?15:1)&&miles<=maxMiles&&hours<=hoursLeft&&hours<8))continue;
+   if(!(miles>=Math.max(minMiles,kind==='rest'?15:1)&&miles<=maxMiles&&hours<=hoursLeft&&(kind!=='break'||hours<8)))continue;
    let detourMiles=Infinity;
    if(directMiles!==null){
     try{
