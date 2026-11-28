@@ -382,5 +382,41 @@
     "source": "https://locations.pilotflyingj.com/us/wi/mauston/1101-gateway-ave",
     "coordinatesPending": false,
     "verifiedEntrance": false
+  },
+  {
+    "name": "ONE9 Travel Center #1222",
+    "brand": "One9",
+    "state": "ND",
+    "city": "Fargo",
+    "address": "3500 12th Ave N, Fargo, ND 58102",
+    "lat": 46.88931495,
+    "lng": -96.835889225,
+    "source": "https://pilotcompany.com/locations/us/nd/fargo/3500-12th-ave-n",
+    "coordinatesPending": false,
+    "verifiedEntrance": false
+  },
+  {
+    "name": "Love's Travel Stop - Fargo",
+    "brand": "Love's",
+    "state": "ND",
+    "city": "Fargo",
+    "address": "3220 39th St S, Fargo, ND",
+    "lat": 46.83145,
+    "lng": -96.84414,
+    "source": "https://routeall.app/truck-stops/loves-travel-stop-fargo-nd",
+    "coordinatesPending": false,
+    "verifiedEntrance": false
+  },
+  {
+    "name": "Love's Travel Stop - Sterling",
+    "brand": "Love's",
+    "state": "ND",
+    "city": "Sterling",
+    "address": "3201 Hwy-14, Sterling, ND",
+    "lat": 46.84011,
+    "lng": -100.28697,
+    "source": "https://routeall.app/truck-stops/loves-travel-stop-sterling-nd",
+    "coordinatesPending": false,
+    "verifiedEntrance": false
   }
 ]
