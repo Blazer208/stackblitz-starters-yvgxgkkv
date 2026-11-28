@@ -42,7 +42,7 @@ test('server blocks direct planner/API access, uses real sessions, and persists 
   const back=freightHtml.match(/href="([^"]*planner\.html)"/);assert.ok(back,'freight page returns to planner');
   assert.equal((await fetch(new URL(back[1],base),{headers:{Cookie:cookie}})).status,200);
   const importPage=await fetch(base+'/route-import.html',{headers:{Cookie:cookie}});assert.equal(importPage.status,200);assert.match(await importPage.text(),/href="freight-loads\.html"/);
-  const bolPage=await fetch(base+'/signed-bol.html',{headers:{Cookie:cookie}});assert.equal(bolPage.status,200);assert.match(await bolPage.text(),/Share signed BOL/);
+  const bolPage=await fetch(base+'/signed-bol.html',{headers:{Cookie:cookie}});assert.equal(bolPage.status,200);const scannerHtml=await bolPage.text();assert.match(scannerHtml,/Scan documents to PDF/);assert.match(scannerHtml,/Share PDF/);assert.match(scannerHtml,/Download one PDF/);
   assert.match(authorized.headers.get('content-security-policy'),/frame-ancestors 'none'/);
   assert.equal((await post('/api/truck-route',{points:[]},cookie,'https://attacker.example')).status,403);
   assert.equal((await post('/api/truck-route',{points:[]},cookie)).status,400);
