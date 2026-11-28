@@ -397,7 +397,8 @@ async function showRouteTruckStops(){
   const pickup=val('pickup'),delivery=val('delivery');
   if(!pickup||!delivery)throw Error('Enter pickup and delivery addresses first.');
   const [a,b,stops]=await Promise.all([geocode(pickup),geocode(delivery),loadRouteStrideDirectories()]);
-  const corridorPoints=[a,b].map(p=>({lat:Number(p.lat),lng:Number(p.lng)}));
+  const route=await routeThrough([a,b]);
+  const corridorPoints=roadCorridorPoints(a,b,route);
   const discovered=await Promise.all(['break','rest'].map(async kind=>{
    try{
     const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:corridorPoints,kind,network:'automatic-fallback',targetMiles:250})});
@@ -409,18 +410,18 @@ async function showRouteTruckStops(){
   const allStops=[...stops,...discovered.flat()];
   const matches=allStops.filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)))
    .map(p=>({...p,lat:Number(p.lat),lng:Number(p.lng)}))
-   .filter(p=>corridorDistanceMiles(p,a,b)<=65)
+   .filter(p=>corridorPoints.slice(1).some((end,i)=>corridorDistanceMiles(p,corridorPoints[i],end)<=65))
    .sort((p,q)=>Math.hypot(p.lat-a.lat,p.lng-a.lng)-Math.hypot(q.lat-a.lat,q.lng-a.lng));
   const unique=[...new Map(matches.map(p=>[String(p.address).toLowerCase(),p])).values()];
-  host.innerHTML='<b>Listed truck stops near the pickup–delivery corridor ('+unique.length+')</b><div class="small">Known directory and automatically discovered locations within approximately 65 straight-line miles of the corridor. This is not an exhaustive list or a truck-legal route; verify access, parking, and driving hours before use.</div>'+
+  host.innerHTML='<b>Listed truck stops near the pickup–delivery corridor ('+unique.length+')</b><div class="small">Known directory and automatically discovered locations within approximately 65 miles of the estimated road corridor. This is not an exhaustive list or a truck-legal route; verify access, parking, and driving hours before use.</div>'+
    (unique.length?'<div style="max-height:440px;overflow:auto">'+unique.map(p=>'<div style="padding:8px 0;border-bottom:1px solid #64748b"><b>'+esc(p.name)+'</b> — '+esc(p.address)+' <a href="'+esc(googleUrl(p.lat,p.lng,p.address))+'" target="_blank" rel="noopener">Google Maps</a> · <a href="'+esc(appleUrl(p.lat,p.lng,p.address))+'" target="_blank" rel="noopener">Apple Maps</a></div>').join('')+'</div>':'No coordinate-verified directory stops were found near this straight-line corridor. This does not mean no truck stops exist.');
  }catch(error){host.textContent='Could not display truck stops: '+error.message;}
  finally{if(button)button.disabled=false;}
 }
 async function routeStrideAddressCandidates(origin,destination,kind,network,targetMiles,speed){
- const directory=await loadRouteStrideDirectories(),statePattern=/,\s*([A-Z]{2})\s+\d{5}/;
+ const directory=await loadRouteStrideDirectories(),statePattern=/,\s*([A-Z]{2})\s+\d{5}/i;
  const originState=String(origin.address||'').match(statePattern)?.[1],destinationState=String(destination.address||'').match(statePattern)?.[1];
- const adjacent={ID:['MT','WY','UT','NV','OR','WA'],UT:['ID','WY','CO','AZ','NV'],WY:['ID','MT','SD','NE','CO','UT'],CO:['WY','NE','KS','OK','NM','AZ','UT'],NE:['WY','SD','IA','MO','KS','CO'],KS:['NE','MO','OK','CO'],MO:['IA','IL','KY','TN','AR','OK','KS','NE'],OK:['KS','MO','AR','TX','NM','CO'],TX:['NM','OK','AR','LA'],IA:['MN','WI','IL','MO','NE','SD'],IL:['WI','IA','MO','KY','IN'],IN:['IL','MI','OH','KY'],OH:['MI','IN','KY','WV','PA'],WI:['MN','MI','IL','IA'],OR:['WA','ID','NV','CA'],WA:['ID','OR'],CA:['OR','NV','AZ'],AZ:['CA','NV','UT','NM'],NM:['AZ','UT','CO','OK','TX'],TN:['KY','VA','NC','GA','AL','MS','AR','MO'],VA:['WV','MD','NC','TN','KY'],GA:['FL','AL','TN','NC','SC'],FL:['GA','AL'],SC:['GA','NC'],LA:['TX','AR','MS'],AR:['MO','TN','MS','LA','TX','OK'],MS:['TN','AL','LA','AR']};
+ const adjacent={MT:['ID','WY','ND','SD'],ND:['MT','SD','MN'],SD:['MT','WY','ND','MN','IA','NE'],MN:['ND','SD','IA','WI'],ID:['MT','WY','UT','NV','OR','WA'],UT:['ID','WY','CO','AZ','NV'],WY:['ID','MT','SD','NE','CO','UT'],CO:['WY','NE','KS','OK','NM','AZ','UT'],NE:['WY','SD','IA','MO','KS','CO'],KS:['NE','MO','OK','CO'],MO:['IA','IL','KY','TN','AR','OK','KS','NE'],OK:['KS','MO','AR','TX','NM','CO'],TX:['NM','OK','AR','LA'],IA:['MN','WI','IL','MO','NE','SD'],IL:['WI','IA','MO','KY','IN'],IN:['IL','MI','OH','KY'],OH:['MI','IN','KY','WV','PA'],WI:['MN','MI','IL','IA'],OR:['WA','ID','NV','CA'],WA:['ID','OR'],CA:['OR','NV','AZ'],AZ:['CA','NV','UT','NM'],NM:['AZ','UT','CO','OK','TX'],TN:['KY','VA','NC','GA','AL','MS','AR','MO'],VA:['WV','MD','NC','TN','KY'],GA:['FL','AL','TN','NC','SC'],FL:['GA','AL'],SC:['GA','NC'],LA:['TX','AR','MS'],AR:['MO','TN','MS','LA','TX','OK'],MS:['TN','AL','LA','AR']};
  const states=new Set([originState,destinationState].filter(Boolean));
  for(const state of [...states])for(const near of adjacent[state]||[])states.add(near);
  const eligible=directory.filter(s=>allowedBrand(brandOf(s.name),kind,network));
@@ -449,6 +450,23 @@ async function routeStrideAddressCandidates(origin,destination,kind,network,targ
  }
  return results;
 }
+function roadCorridorPoints(origin,destination,route,maxSearchMiles=Infinity){
+ const coords=route?.geometry?.coordinates;
+ const endpoints=[origin,destination].map(p=>({lat:Number(p.lat),lng:Number(p.lng)}));
+ if(!Array.isArray(coords)||coords.length<2)return endpoints;
+ const points=coords.filter(p=>Array.isArray(p)&&Number.isFinite(p[0])&&Number.isFinite(p[1])).map(p=>({lat:p[1],lng:p[0]}));
+ if(points.length<2)return endpoints;
+ const cumulative=[0];
+ for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];cumulative.push(cumulative.at(-1)+Math.hypot((b.lat-a.lat)*69,(b.lng-a.lng)*69*Math.cos((a.lat+b.lat)*Math.PI/360)));}
+ const end=Math.min(cumulative.at(-1),maxSearchMiles),step=Math.max(1,end/24);
+ const sampled=[points[0]];
+ let j=1;
+ for(let d=step;d<end;d+=step){while(j<points.length-1&&cumulative[j]<d)j++;const t=(d-cumulative[j-1])/(cumulative[j]-cumulative[j-1]||1);sampled.push({lat:points[j-1].lat+(points[j].lat-points[j-1].lat)*t,lng:points[j-1].lng+(points[j].lng-points[j-1].lng)*t});}
+ while(j<points.length-1&&cumulative[j]<end)j++;
+ const t=(end-cumulative[j-1])/(cumulative[j]-cumulative[j-1]||1);
+ sampled.push({lat:points[j-1].lat+(points[j].lat-points[j-1].lat)*t,lng:points[j-1].lng+(points[j].lng-points[j-1].lng)*t});
+ return sampled.slice(0,25);
+}
 async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,capToDestination=false){
  let {minMiles,maxMiles,targetMiles}=stopWindow(kind,hoursLeft,speed,false);
  let directMiles=null;
@@ -459,6 +477,8 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
    targetMiles=Math.min(targetMiles,maxMiles);
    if(maxMiles<1)throw new Error('No delivery distance remains for the required short-trip break/fuel stop.');
  }
+ let corridorPoints=[origin,destination].map(p=>({lat:p.lat,lng:p.lng}));
+ try{const direct=await routeThrough([origin,destination]);directMiles=direct.distance/1609.344;corridorPoints=roadCorridorPoints(origin,destination,direct,maxMiles+75);}catch(e){if(e.status===429)throw e;}
  const candidates=[];
  const selectionOrdinal=routeStrideSelectionOrdinal++;
  const override=window.routeStrideReplacement;
@@ -469,7 +489,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
   if(preferred&&preferred.address)candidates.push(preferred);
  }
  try{
-  const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network,targetMiles})});
+  const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:corridorPoints,kind,network,targetMiles})});
   if(response.ok){const data=await response.json();candidates.push(...(data.stops||[]));}
  }catch(e){console.warn('Automatic stop directory unavailable:',e.message);}
  if(directMiles===null)try{directMiles=(await routeThrough([origin,destination])).distance/1609.344;}catch(e){}
@@ -522,7 +542,7 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
  if(!eligible.length){
   const fallbackNetwork='automatic-fallback';
   try{
-   const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:[origin,destination].map(p=>({lat:p.lat,lng:p.lng})),kind,network:fallbackNetwork,targetMiles})});
+   const response=await fetchTimed('/api/automatic-stop-candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:corridorPoints,kind,network:fallbackNetwork,targetMiles})});
    if(response.ok){const data=await response.json();expandedCandidates.push(...(data.stops||[]));}
   }catch(e){if(e.status===429)throw e;console.warn('Expanded stop directory lookup unavailable:',e.message);}
   try{
