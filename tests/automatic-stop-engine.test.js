@@ -18,15 +18,15 @@ test('automatic stop engine ranks nearby approved Pilot stops toward mileage tar
  ];
  const result=withDirectory(list,()=>candidates({points,kind:'break',targetMiles:200}));
  assert.equal(result.stops[0].name,'Pilot target');
- assert.ok(result.stops.every(s=>s.brand==='Pilot'));
+ assert.ok(result.stops.every(s=>['Pilot',"Love's"].includes(s.brand)));
  assert.equal(result.routeVerified,false);
  assert.ok(result.stops.every(s=>s.routeVerified===false));
 });
-test('overnight candidates permit Love’s, but fuel-only policy does not',()=>{
+test('Love’s is permitted for fuel fallback and overnight rest',()=>{
  const list=[stop("Love's Overnight","Love's",'1 Overnight Lane, Colorado',40,-102)];
  const fuel=withDirectory(list,()=>candidates({points,kind:'break'}));
  const overnight=withDirectory(list,()=>candidates({points,kind:'rest'}));
- assert.equal(fuel.stops.length,0);
+ assert.equal(fuel.stops.length,1);
  assert.equal(overnight.stops.length,1);
 });
 test('automatic candidate search deduplicates addresses and rejects invalid coordinates',()=>{
