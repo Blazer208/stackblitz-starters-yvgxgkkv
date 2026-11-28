@@ -1,0 +1,22 @@
+name: Trip 126746 isolated acceptance
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/acceptance-126746.yml'
+      - 'scripts/acceptance-126746.js'
+  workflow_dispatch:
+concurrency:
+  group: trip-126746-acceptance
+  cancel-in-progress: false
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run isolated application with live road-estimate providers
+        run: node scripts/acceptance-126746.js
