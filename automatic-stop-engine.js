@@ -16,7 +16,7 @@ function candidates({points,kind='break',network='Pilot / Flying J only',targetM
    const pos=project(stop,leg.a,leg.b);if(pos.corridorMiles>maxCorridorMiles)continue;
    const estimatedProgressMiles=offset+leg.length*pos.progress;
    const key=stop.brand+':'+stop.address.toLowerCase().replace(/\s+/g,' ').trim();
-   const entry={...stop,estimatedProgressMiles,corridorMiles:pos.corridorMiles,verifiedEntrance:stop.verifiedEntrance===true,routeVerified:false,score:Math.abs(estimatedProgressMiles-targetMiles)+pos.corridorMiles*3};
+   const entry={...stop,estimatedProgressMiles,corridorMiles:pos.corridorMiles,verifiedEntrance:stop.verifiedEntrance===true,routeVerified:false,score:Math.abs(estimatedProgressMiles-targetMiles)+pos.corridorMiles*3+(kind==='break'&&!['Pilot','Flying J'].includes(stop.brand)?35:0)};
    if(!ranked.has(key)||entry.score<ranked.get(key).score)ranked.set(key,entry);
   }offset+=leg.length;
  }
