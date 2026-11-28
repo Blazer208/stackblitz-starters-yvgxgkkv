@@ -23,8 +23,8 @@ function allowedBrand(brand,kind,network) {
   if (['Pilot','Flying J'].includes(brand)) return true;
   // The automatic fallback may use any listed national truck-stop network when the preferred network has no usable stop.
   if(network==='automatic-fallback')return ["Love's",'One9','TA','Petro','Little America'].includes(brand);
-  // Break and fuel stops use Pilot/Flying J. Love's is an overnight alternative.
-  return kind==='rest' && brand==="Love's";
+  // Fuel/breaks prefer Pilot/Flying J, with Love's as fallback. Overnight rest also permits other listed truck-parking networks.
+  return brand==="Love's" || (kind==='rest' && ['TA','Petro','One9','Little America'].includes(brand));
 }
 function normalizeMatches(payload,kind,network) {
   if (!Array.isArray(payload.POISearchMatches)) throw new Error('Invalid truck-stop provider response');
