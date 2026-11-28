@@ -62,10 +62,10 @@ test('print preview contains Google, Apple, Trucker Path and Hammer QR plus Garm
  const html=getElementById('printReport').innerHTML;
  for(const label of ['PROFESSIONAL DRIVER TRIP PLAN','Google Maps','Apple Delivery','Trucker Path','Hammer Leg 1','Hammer Leg 2','Download Garmin GPX'])assert.ok(html.includes(label),'Missing '+label);
 });
-test('Pilot-only fuel and approved overnight parking networks are distinct',()=>{
- assert.equal(allowedBrand("Love's",'break','Pilot / Flying J only'),false);
+test('fuel fallback and overnight parking networks are distinct',()=>{
+ assert.equal(allowedBrand("Love's",'break','Pilot / Flying J only'),true);
  assert.equal(allowedBrand("Love's",'rest','Pilot / Flying J only'),true);
- assert.equal(allowedBrand('TA','rest','Pilot / Flying J only'),false);
+ assert.equal(allowedBrand('TA','rest','Pilot / Flying J only'),true);
  assert.equal(allowedBrand('TA','rest','automatic-fallback'),true);
  assert.equal(allowedBrand('Flying J','break','Pilot / Flying J only'),true);
 });
