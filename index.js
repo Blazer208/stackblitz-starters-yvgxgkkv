@@ -114,11 +114,11 @@ async function truckRoute(req,res){
   const key=JSON.stringify([coords,height,width,weight,trailer,overall]);if(routeCache.has(key))return json(res,200,routeCache.get(key));
   if(Date.now()-quotaWindow>3600000){quotaWindow=Date.now();quotaCalls=0;}if(++quotaCalls>1500)return json(res,429,{error:'Road routing is temporarily busy. Please retry later.'});
   // Public OSRM driving network provides planning mileage only; it does NOT apply truck restrictions.
-  const upstream=await fetch('https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=false&steps=false',{signal:AbortSignal.timeout(25000),headers:{'User-Agent':'RouteStride/1.0 (trip planning estimates)'}});
+  const upstream=await fetch('https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=simplified&geometries=geojson&steps=false',{signal:AbortSignal.timeout(25000),headers:{'User-Agent':'RouteStride/1.0 (trip planning estimates)'}});
   if(!upstream.ok)return json(res,502,{error:'Planning road network temporarily unavailable'});
   const payload=await upstream.json();const route=payload.routes?.[0];
   if(payload.code!=='Ok'||!Number.isFinite(route?.distance)||!Number.isFinite(route?.duration))return json(res,422,{error:'No connected road route found for these stops'});
-  const result={distance:route.distance,duration:route.duration,geometry:null,legs:route.legs||[],provider:'OSRM driving-road estimate',truckRestrictionsChecked:false,planningEstimate:true,notice:'Planning mileage only. Road height, weight, width, length and truck restrictions are NOT verified.',profile:{heightInches:height,widthInches:width,grossWeight:weight,trailerFeet:trailer,overallFeet:overall}};
+  const result={distance:route.distance,duration:route.duration,geometry:route.geometry?.type==='LineString'?route.geometry:null,legs:route.legs||[],provider:'OSRM driving-road estimate',truckRestrictionsChecked:false,planningEstimate:true,notice:'Planning mileage only. Road height, weight, width, length and truck restrictions are NOT verified.',profile:{heightInches:height,widthInches:width,grossWeight:weight,trailerFeet:trailer,overallFeet:overall}};
   if(routeCache.size>=100)routeCache.delete(routeCache.keys().next().value);routeCache.set(key,result);return json(res,200,result);
  }catch(e){console.error('Road estimate failed',e.message);return json(res,502,{error:'Planning road network unavailable; try again'});}
 }
