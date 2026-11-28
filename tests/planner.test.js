@@ -164,3 +164,22 @@ test('Milwaukee Springville planner stages in Utah before next-morning delivery 
  assert.ok(stage.driveHours<8);
  assert.match(elements.generated.innerHTML,/DAY 4/);
 });
+
+test('curved road corridor sends intermediate route points to the candidate service',async()=>{
+ const {context,actualSelect}=fixture(1000);
+ context.selectTruckStop=actualSelect;
+ const start={lat:43.45,lng:-112.1},end={lat:42.9,lng:-87.95};
+ const stop={lat:45.7737,lng:-111.1983,name:'Pilot Belgrade',brand:'Pilot',address:'561 Business Hub Dr, Belgrade, MT 59714'};
+ let searched;
+ context.routeThrough=async points=>{
+   if(points.length===2&&points[1].lng===end.lng)return {distance:1537*1609.344,duration:28*3600,geometry:{type:'LineString',coordinates:[[-112.1,43.45],[-111.2,45.77],[-108.4168,45.816],[-100.7285,46.829],[-94.14972,45.49716],[-87.95,42.9]]}};
+   if(points.length===3)return {distance:1540*1609.344,duration:28.1*3600};
+   return {distance:220*1609.344,duration:4*3600};
+ };
+ context.fetchTimed=async(url,options)=>{searched=JSON.parse(options.body).points;return {ok:true,json:async()=>({stops:[stop]})};};
+ const result=await context.selectTruckStop(start,end,'break','Pilot / Flying J only',7.75,55);
+ assert.equal(result.address,stop.address);
+ assert.ok(searched.length>2&&searched.length<=25);
+ assert.ok(searched.some(p=>p.lat>45.5),'search follows the northward bend rather than the straight line');
+ assert.ok(result.driveHours<=7.75);
+});
