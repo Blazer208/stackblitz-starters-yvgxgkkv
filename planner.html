@@ -468,7 +468,12 @@ async function selectTruckStop(origin,destination,kind,network,hoursLeft,speed,c
    }
    eligible.push({...stop,kind,miles,driveHours:hours,detourMiles,source:'Automatically selected directory location — road distance estimated; truck restrictions and entrance not verified'});
   }
-  eligible.sort((a,b)=>((override&&override.ordinal===selectionOrdinal&&a.address===override.stop.address)?-100000:0)+Math.abs(a.miles-targetMiles)+Math.min(a.detourMiles,35)*2-(((override&&override.ordinal===selectionOrdinal&&b.address===override.stop.address)?-100000:0)+Math.abs(b.miles-targetMiles)+Math.min(b.detourMiles,35)*2));
+  const stopScore=s=>{
+   const preferred=kind==='break'&&['Pilot','Flying J'].includes(brandOf(s.name||s.brand||''));
+   const replacement=override&&override.ordinal===selectionOrdinal&&s.address===override.stop.address;
+   return (replacement?-100000:0)+Math.abs(s.miles-targetMiles)+Math.min(s.detourMiles,35)*2+(kind==='break'&&!preferred?35:0);
+  };
+  eligible.sort((a,b)=>stopScore(a)-stopScore(b));
   return eligible;
  };
  let eligible=await assess(candidates),additionalCandidates=[];
@@ -635,7 +640,7 @@ async function buildGenericPlan(){
      if(clock)clock=new Date(clock.getTime()+s.driveHours*3600000);
      const arrival=clock?clock.toLocaleString(window.DispatchI18n?.locale()||'en-US'):'';
      const label={break:'30-MIN BREAK / FUEL',rest:'FINAL REST',delivery:'DELIVERY',pickup:'PICKUP'}[s.kind];
-     const note=s.miles.toFixed(1)+' estimated road mi • '+s.driveHours.toFixed(1)+' drive hr'+(arrival?' • Estimated arrival '+dateMarkup(clock):'')+(s.miles<200?' • Short leg for delivery / available clock':'');
+     const note=(s.kind==='break'?'Fuel / 30-minute break':s.kind==='rest'?'Overnight parking / rest':s.kind==='delivery'?'Receiver':'Pickup')+' • '+s.miles.toFixed(1)+' estimated road mi • '+s.driveHours.toFixed(1)+' drive hr'+(arrival?' • Estimated arrival '+dateMarkup(clock):'')+(s.miles<200?' • Short leg for delivery / available clock':'');
      const card=stopCard(s,label,note);
      if(clock&&s.kind==='break')clock=new Date(clock.getTime()+1800000);
      return card;
