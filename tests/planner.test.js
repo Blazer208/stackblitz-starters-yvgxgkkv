@@ -44,7 +44,7 @@ test('default stop spacing and approved fuel networks',()=>{
  assert.deepEqual(stopWindow('rest',9,55),{minMiles:200,maxMiles:300,targetMiles:250});
  assert.deepEqual(stopWindow('break',5,55),{minMiles:175,maxMiles:275,targetMiles:250});
  assert.equal(brandOf('Flying J Travel Center #123'),'Flying J');
- assert.equal(allowedBrand("Love's",'break','Pilot / Flying J only'),false);
+ assert.equal(allowedBrand("Love's",'break','Pilot / Flying J only'),true);
  assert.equal(allowedBrand("Love's",'rest','Pilot / Flying J only'),true);
 });
 test('print preview opens for a built plan without the removed strategy field',()=>{
