@@ -592,7 +592,23 @@ async function buildGenericPlan(){
      const kind=leg===0?'break':'rest';
      if(kind==='break'&&shortTripRequiresOneBreak&&shortTripBreakAdded)throw new Error('Trips under 650 estimated road miles are limited to one 30-minute break/fuel stop. The drive clock requires an additional break stop. Adjust the daily hours or route length.');
      status.innerHTML='<span class="spinner"></span>Day '+dayIndex+': finding '+(kind==='break'?'break/fuel':'overnight')+' stop within the available clock…';
-     const stop=await selectTruckStop(current,deliveryStop,kind,val('network'),Math.min(maxHours-dayHours,leg===0?7.75-dayHours:7.75),avgSpeed,shortTripRequiresOneBreak&&kind==='break'&&!shortTripBreakAdded);
+     let stop;
+     try{
+       stop=await selectTruckStop(current,deliveryStop,kind,val('network'),Math.min(maxHours-dayHours,leg===0?7.75-dayHours:7.75),avgSpeed,shortTripRequiresOneBreak&&kind==='break'&&!shortTripBreakAdded);
+     }catch(stopError){
+       // When the second stop is unreachable inside the remaining clock,
+       // safely finish the day at the already-routed first stop instead of
+       // rejecting the entire trip. Never invent a stop or extra drive time.
+       if(leg===1&&entries.length&&entries[entries.length-1].kind==='break'&&/No listed overnight rest location/.test(String(stopError.message))){
+         const prior=entries[entries.length-1];
+         prior.kind='rest';
+         const stored=stops[stops.length-1];
+         if(stored)stored.kind='rest';
+         adjustmentNotes.push('Day '+dayIndex+': used the verified first stop as overnight rest because no second stop fit the remaining driving clock.');
+         break;
+       }
+       throw stopError;
+     }
      if(stop.automaticAdjustment)adjustmentNotes.push(stop.automaticAdjustment);
      if(kind==='break'&&shortTripRequiresOneBreak)shortTripBreakAdded=true;
      entries.push(stop);stops.push(stop);dayHours+=stop.driveHours;dayMiles+=stop.miles;current=stop;
