@@ -8,7 +8,7 @@ try{const data=JSON.parse(fs.readFileSync(file,'utf8'));if(Array.isArray(data))r
 function valid(p){return p&&typeof p.name==='string'&&typeof p.address==='string'&&p.address.length>5&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Math.abs(p.lat)<=90&&Math.abs(p.lng)<=180&&['Pilot','Flying J','Love\'s','One9','TA','Petro','Little America'].includes(p.brand);}
 // Bundled TA/Petro directory seed: loaded at startup even without a Railway volume.
 try{
- const seeded=require('./data/ta-petro-seed.json');
+ const seeded=[...require('./data/ta-petro-seed.json'),...require('./data/route-stride-map-stops.json')];
  const seen=new Set(records.map(p=>p.brand+':'+p.lat.toFixed(5)+':'+p.lng.toFixed(5)));
  for(const p of seeded){if(!valid(p))continue;const k=p.brand+':'+p.lat.toFixed(5)+':'+p.lng.toFixed(5);if(!seen.has(k)){records.push(p);seen.add(k);}}
 }catch(e){console.warn('Bundled TA/Petro directory unavailable:',e.message);}
